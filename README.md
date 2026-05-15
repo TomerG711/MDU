@@ -1,20 +1,22 @@
 # Masked Diffusion Unlearning (MDU)
 
-Anonymous code accompanying the NeurIPS 2026 submission
-**"Machine Unlearning for Masked Diffusion Language Models"**.
+Reference implementation for the paper
+**"Machine Unlearning for Masked Diffusion Language Models"**
+([arXiv preprint](https://arxiv.org/abs/TBD)).
 
 This release contains the MDU training objective and the evaluation
 protocols required to reproduce the main results on TOFU forget10 and
 RWKU. Baseline implementations (GA, GD, NPO, SimNPO, WGA, DPO) and
-backbone training code (Dream/LLaDA SFT) are not included here.
+backbone training code (Dream / LLaDA SFT) are not included here.
 
 ---
 
 ## 1. Repository layout
 
 ```
-mdu_code/
+MDU/
 ├── README.md
+├── LICENSE
 ├── requirements.txt
 ├── run_main.sh                  # MDU runner (TOFU / RWKU, both backbones)
 ├── configs/
@@ -49,36 +51,34 @@ NVIDIA H200 (141 GB HBM3e).
 
 All experiments use only public assets:
 
-- **TOFU** (forget10 split). The repository contains
+- **TOFU** (forget10 split). The repository expects
   `forget10.json`, `retain_perturbed.json`, `real_authors.json`,
   `world_facts.json` from the original TOFU release.
 - **RWKU**. Use `scripts/convert_rwku_dream_to_tofu.py` to build
   per-entity `forget.jsonl` and `dpo.jsonl` from the RWKU pair JSON.
 - **Backbones**:
-  - LLaDA-8B-Instruct (HuggingFace)
-  - Dream-v0-Instruct-7B (HuggingFace)
+  - `GSAI-ML/LLaDA-8B-Instruct` (HuggingFace)
+  - `Dream-org/Dream-v0-Instruct-7B` (HuggingFace)
 
-For TOFU experiments we additionally fine-tune each backbone on the
-full TOFU corpus to instil the target knowledge (LLaDA: 1000 epoch,
-Dream: 300 epoch). The SFT code itself is not part of this release;
-the resulting `Base SFT` checkpoint is consumed by `run_main.sh` via
-the `LLADA_BASE_SFT` / `DREAM_BASE_SFT` paths.
+For TOFU we additionally fine-tune each backbone on the full TOFU corpus
+to instil the target knowledge (LLaDA: 1000 epoch, Dream: 300 epoch).
+The SFT code itself is not part of this release; the resulting Base SFT
+checkpoint is consumed by `run_main.sh` via the `LLADA_BASE_SFT` /
+`DREAM_BASE_SFT` paths.
 
 ---
 
 ## 4. MDU objective
 
-Given a forget pair $(x, y)$ from $\mathcal{D}_f$ and a partially
-masked response $y_t \sim q(\cdot \mid y, t)$ at noise level
-$t \sim \mathcal{U}[0, 1]$, MDU minimizes a forward KL from the
-trainable conditional prediction
-$p^{c}_\theta(\cdot \mid x, y_t)$ to a $\tau$-sharpened, frozen
-unconditional anchor at every masked position:
+Given a forget pair $(x, y)$ from $\mathcal{D}_f$ and a partially masked
+response $y_t \sim q(\cdot \mid y, t)$ at noise level
+$t \sim \mathcal{U}[0, 1]$, MDU minimizes a forward KL from the trainable
+prompt-conditional prediction $p^{c}_\theta(\cdot \mid x, y_t)$ to a
+$\tau$-sharpened frozen unconditional anchor at every masked position:
 
 $$
 \mathcal{L}_{\mathrm{MDU}}(\theta)
-=
-\mathbb{E}\!\left[
+= \mathbb{E}\!\left[
 \frac{1}{|\mathcal{M}_t|}
 \sum_{i \in \mathcal{M}_t}
 \mathrm{KL}\!\left(
@@ -86,23 +86,28 @@ p^{c}_\theta(\cdot \mid x, y_t)
 \,\Big\|\,
 \frac{1}{Z_i}\, p^{u}_{\theta_0}(\cdot \mid m, y_t)^{\tau}
 \right)
-\right].
+\right],
 $$
 
-- `\tau \in [0, 1]` controls the sharpness of the unconditional anchor.
-- `\theta_0` is the model at the start of unlearning; the
-  unconditional branch is detached and never updated.
-- `\tau = 0` reduces to a uniform anchor;
-  `\tau = 1` recovers an ESD-style anchor against the base model's
-  null-prompt prediction.
+where $\mathcal{M}_t$ is the set of masked positions, $m$ is a null
+prompt of identical length to $x$, and
+$Z_i = \sum_{v} p^{u}_{\theta_0}(v \mid m, y_t)^{\tau}$ is the
+normalization constant.
+
+- $\tau \in [0, 1]$ controls the sharpness of the unconditional anchor.
+- $\theta_0$ is the model at the start of unlearning; the unconditional
+  branch is detached and never updated.
+- $\tau = 0$ reduces to a uniform anchor; $\tau = 1$ recovers an
+  ESD-style anchor against the base model's null-prompt prediction.
 
 In practice we add a weighted reconstruction loss
 $\lambda \, \mathcal{L}_{\mathrm{sft}}(\theta; \mathcal{D}_r)$ on a
-retain set whenever one is available (TOFU). On RWKU we use
-$\alpha = 0$ since no entity-level retain set is provided.
+retain set whenever one is available (TOFU). On RWKU we use $\lambda=0$
+since no entity-level retain set is provided.
 
-The MDU step is implemented in `src/unlearn_mdu_{llada,dream}.py` (look
-for `null_anchor_tau`, `null_anchor_eta`, `null_anchor_kl_dir`).
+The full optimization step is implemented in
+`src/unlearn_mdu_{llada,dream}.py` (look for `null_anchor_tau`,
+`null_anchor_eta`, `null_anchor_kl_dir`).
 
 ---
 
@@ -114,8 +119,8 @@ for `null_anchor_tau`, `null_anchor_eta`, `null_anchor_kl_dir`).
 # Edit the paths at the top of run_main.sh first.
 # Pass τ ∈ {0, 0.25, 0.5, 0.75, 1}.
 
-bash run_main.sh tofu_llada 0.5 ./outputs/llada_tofu_tau0p5
-bash run_main.sh tofu_dream 0.5 ./outputs/dream_tofu_tau0p5
+LR=1e-5 EPO=9 bash run_main.sh tofu_llada 0.5 ./outputs/llada_tofu_tau0p5
+LR=1e-5 EPO=5 bash run_main.sh tofu_dream 0.5 ./outputs/dream_tofu_tau0p5
 ```
 
 Then evaluate:
@@ -132,7 +137,8 @@ python scripts/convert_rwku_dream_to_tofu.py
 
 # 2) Unlearn one entity (e.g. τ=0.5).
 SUBJECT=1_Stephen_King
-bash run_main.sh rwku_dream 0.5 ./outputs/dream_rwku_${SUBJECT}_tau0p5 ${SUBJECT}
+LR=1e-5 EPO=3 bash run_main.sh rwku_dream 0.5 \
+    ./outputs/dream_rwku_${SUBJECT}_tau0p5 ${SUBJECT}
 
 # 3) Evaluate (8 metrics: F-L1/L2/L3, N-L1/L2, MMLU, TruthfulQA, TriviaQA).
 TARGET="Stephen King"
@@ -147,10 +153,20 @@ loop over the canonical subject names listed in the paper.
 
 ---
 
-## 6. License and citation
+## 6. Citation
 
-This anonymous release is provided for double-blind review only. Final
-license and BibTeX entries will be added in the camera-ready version.
-External assets retain their original licenses (TOFU: MIT; RWKU:
-Apache-2.0; LLaDA-8B-Instruct and Dream-v0-Instruct-7B: as stated by
-their HuggingFace cards).
+```bibtex
+@article{lee2026mdu,
+  title  = {Machine Unlearning for Masked Diffusion Language Models},
+  author = {Lee, Georu and Jeong, Seungwon and Kim, Hoki and Park, Jinseong and Lee, Woojin},
+  journal= {arXiv preprint},
+  year   = {2026}
+}
+```
+
+## 7. License
+
+This repository is released under the MIT License (see `LICENSE`).
+External assets retain their original licenses: TOFU (MIT), RWKU
+(Apache-2.0), LLaDA-8B-Instruct (MIT), and Dream-v0-Instruct-7B
+(Apache-2.0).
