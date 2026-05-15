@@ -16,36 +16,8 @@
 <p align="center">
   <img src="images/mdu_overview.png" alt="MDU Framework Overview" width="900">
 </p>
-<p align="center">
-  <em>MDU pulls the prompt-conditional prediction back toward the prompt-masked unconditional anchor at every masked response position.</em>
-</p>
 
-This repository provides the official implementation of **MDU (Masked Diffusion Unlearning)**, the first unlearning objective tailored to **masked diffusion language models (MDLMs)** such as LLaDA and Dream.
-
-Existing LLM unlearning methods are designed around left-to-right next-token prediction, so they do not naturally fit MDLM training, which proceeds through partially masked denoising states.
-
-**MDU** addresses this gap by:
-
-- Treating unlearning as the **structural inverse of MDLM fine-tuning** — driving the prompt-conditional prediction back toward the prompt-masked unconditional prediction
-- Minimizing a **forward KL** to a $\tau$-tempered, frozen unconditional anchor at every masked position
-- Exposing a single hyperparameter $\tau \in [0, 1]$ that smoothly **trades off forgetting strength against generation quality** ($\tau = 0$: maximum-entropy / uniform anchor; $\tau = 1$: ESD-style null-prompt anchor)
-
-The objective is:
-
-$$
-\mathcal{L}_{\mathrm{MDU}}(\theta)
-= \mathbb{E}\!\left[
-\frac{1}{|\mathcal{M}_t|}
-\sum_{i \in \mathcal{M}_t}
-\mathrm{KL}\!\left(
-p^{c}_\theta(\cdot \mid x, y_t)
-\,\Big\|\,
-\frac{1}{Z_i}\, p^{u}_{\theta_0}(\cdot \mid m, y_t)^{\tau}
-\right)
-\right],
-$$
-
-where $\mathcal{M}_t$ are masked positions, $m$ is a null prompt of the same length as $x$, and $\theta_0$ is the model at the start of unlearning (frozen).
+**MDU (Masked Diffusion Unlearning)** is the first unlearning objective designed for **masked diffusion language models (MDLMs)** such as LLaDA and Dream. Treating unlearning as the *structural inverse* of MDLM fine-tuning, MDU pulls the prompt-conditional prediction back toward the prompt-masked unconditional prediction at every masked response position. A single temperature $\tau \in [0, 1]$ smoothly controls the **privacy–utility balance** — smaller $\tau$ enforces stronger erasure, larger $\tau$ preserves fluent generation.
 
 ---
 
