@@ -1,0 +1,31 @@
+# MDU on RWKU.
+# Backbone: Dream-7B-Instruct (off-the-shelf, no SFT).
+# Per-entity unlearning, average over the first 10 target entities.
+# Forget-only (alpha = 0, no_retain) since RWKU does not provide an
+# entity-level retain set.
+
+defaults:
+  optimizer: AdamW
+  per_device_train_batch_size: 4
+  retain_anchor_alpha: 0.0
+  no_retain: true
+  null_anchor_eta: 0.0
+  null_anchor_kl_dir: forward
+  denoise_steps: 128
+  max_new_tokens: 128
+
+mdu:
+  tau_sweep: [0, 0.25, 0.5, 0.75, 1.0]
+  frozen_unconditional: true
+
+evaluation:
+  metrics:
+    forget: [forget_level1, forget_level2, forget_level3]   # RougeL, lower is better
+    neighbor: [neighbor_level1, neighbor_level2]            # RougeL, higher is better
+    utility: [mmlu, truthfulqa_mc1, triviaqa_em]             # higher is better
+  batch_size: 32
+  max_new_tokens_long: 64
+  max_new_tokens_short: 5     # for MMLU / TruthfulQA
+  steps: 64
+  temperature: 0.0
+  dtype: bfloat16

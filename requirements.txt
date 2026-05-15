@@ -1,0 +1,13 @@
+# Core dependencies for MDU on LLaDA-8B-Instruct / Dream-7B-Instruct.
+# Tested with Python 3.10 and CUDA 12.x.
+
+torch==2.7.0
+transformers==4.57.0
+accelerate>=0.33.0
+datasets>=2.14.0
+numpy
+pyyaml
+tqdm
+sentencepiece
+rouge-score
+scikit-learn

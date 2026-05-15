@@ -1,0 +1,23 @@
+# MDU on TOFU forget10.
+# Backbones: LLaDA-8B-Instruct (TOFU-SFT), Dream-7B-Instruct (TOFU-SFT).
+# All configurations use AdamW, retain anchor lambda=1.0 (rSFT).
+
+defaults:
+  optimizer: AdamW
+  per_device_train_batch_size: 4
+  gradient_accumulation_steps: 4   # effective batch 16
+  retain_anchor_lambda: 1.0        # rSFT
+  null_anchor_eta: 0.0
+  null_anchor_kl_dir: forward
+  denoise_steps: 128
+  max_new_tokens: 128
+
+mdu:
+  # main paper sweeps tau in {0, 0.25, 0.5, 0.75, 1}
+  tau_sweep: [0, 0.25, 0.5, 0.75, 1.0]
+  frozen_unconditional: true        # use init parameters theta_0 for the anchor
+
+evaluation:
+  splits: [forget10, retain10, real_authors, world_facts]
+  # answer probability via Eq. 14 (LLaDA-style MC reconstruction estimator)
+  N_mc: 128
