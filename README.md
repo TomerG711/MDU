@@ -1,7 +1,13 @@
 # Machine Unlearning for Masked Diffusion Language Models
 
+**[arXiv preprint, 2026]**
+📄 [Paper (arXiv)](https://arxiv.org/abs/2605.18253)
+
+---
+
 ## Updates
 
+- **05-19-2026**: arXiv preprint online ([arXiv:2605.18253](https://arxiv.org/abs/2605.18253)).
 - **05-15-2026**: Code released.
 
 ---
@@ -114,7 +120,14 @@ The MDU step itself is implemented in `src/unlearn_mdu_{llada,dream}.py` (search
 
 ## 📜 Citation
 
-Coming soon — BibTeX will be added once the arXiv preprint is online.
+```bibtex
+@article{lee2026mdu,
+  title  = {Machine Unlearning for Masked Diffusion Language Models},
+  author = {Lee, Georu and Jeong, Seungwon and Kim, Hoki and Park, Jinseong and Lee, Woojin},
+  journal= {arXiv preprint arXiv:2605.18253},
+  year   = {2026}
+}
+```
 
 ## 📄 License
 
