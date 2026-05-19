@@ -121,11 +121,14 @@ The MDU step itself is implemented in `src/unlearn_mdu_{llada,dream}.py` (search
 ## 📜 Citation
 
 ```bibtex
-@article{lee2026mdu,
-  title  = {Machine Unlearning for Masked Diffusion Language Models},
-  author = {Lee, Georu and Jeong, Seungwon and Kim, Hoki and Park, Jinseong and Lee, Woojin},
-  journal= {arXiv preprint arXiv:2605.18253},
-  year   = {2026}
+@misc{lee2026machineunlearningmaskeddiffusion,
+      title={Machine Unlearning for Masked Diffusion Language Models}, 
+      author={Georu Lee and Seungwon Jeong and Hoki Kim and Jinseong Park and Woojin Lee},
+      year={2026},
+      eprint={2605.18253},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2605.18253}, 
 }
 ```
 
