@@ -22,6 +22,7 @@ import argparse
 import hashlib
 import os
 import platform
+import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -177,6 +178,9 @@ def prepare_split_output(args):
 
         if getattr(args, "_run_root", None):
             os.makedirs(args._run_root, exist_ok=True)
+            script_dest = os.path.join(args._run_root, os.path.basename(_SCRIPT_PATH))
+            if not os.path.isfile(script_dest):
+                shutil.copy2(_SCRIPT_PATH, script_dest)
             run_readme = os.path.join(args._run_root, "README.txt")
             if not os.path.exists(run_readme):
                 with open(run_readme, "w", encoding="utf-8") as f:
@@ -184,6 +188,7 @@ def prepare_split_output(args):
                         f"experiment: {args.experiment}\n"
                         f"run_id: {args.run_id}\n"
                         f"paper splits: {', '.join(_TOFU_EVAL_SPLITS)}\n"
+                        f"eval script snapshot: {os.path.basename(_SCRIPT_PATH)}\n"
                         f"Use the same --experiment and --run_id for all four splits.\n"
                     )
             print(f"[run] output: {args.output_dir}")

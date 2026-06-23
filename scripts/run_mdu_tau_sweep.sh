@@ -50,6 +50,7 @@ UNLEARN_LOG_DIR="${UNLEARN_LOG_DIR:-./unlearn_logs}"
 
 CUDA_DEVICES="${CUDA_DEVICES:-0,1}"
 REF_DEVICE="${REF_DEVICE:-auto}"
+NULL_ANCHOR_SOURCE="${NULL_ANCHOR_SOURCE:-auto}"
 DISABLE_DP="${DISABLE_DP:-auto}"
 
 LR="${LR:-1e-5}"
@@ -266,7 +267,7 @@ print_sweep_plan() {
   log "epochs / lr:       ${EPO} / ${LR}"
   log "batch × accum:     ${PER_DEVICE_BATCH} × ${GRAD_ACCUM} (effective $((PER_DEVICE_BATCH * GRAD_ACCUM)))"
   log "save_strategy:     no"
-  log "Training GPUs:     CUDA_VISIBLE_DEVICES=${CUDA_DEVICES} (ref_device=${REF_DEVICE}, disable_dp=${DISABLE_DP})"
+  log "Training GPUs:     CUDA_VISIBLE_DEVICES=${CUDA_DEVICES} (ref_device=${REF_DEVICE}, null_anchor_source=${NULL_ANCHOR_SOURCE}, disable_dp=${DISABLE_DP})"
   log "Unlearn logs:      ${UNLEARN_LOG_DIR}/unlearn_<checkpoint>.log"
   log ""
   log "── W&B ──"
@@ -391,6 +392,7 @@ run_unlearn() {
     --gradient_accumulation_steps "${GRAD_ACCUM}" \
     --save_strategy no \
     --ref_device "${REF_DEVICE}" \
+    --null_anchor_source "${NULL_ANCHOR_SOURCE}" \
     --disable_data_parallel "${DISABLE_DP}" \
     "${wandb_args[@]}" \
     > "${log_file}" 2>&1 &

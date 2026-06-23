@@ -49,7 +49,7 @@ Audit of all uncommitted work relative to `origin/main` (TomerG711/MDU).
 |--------|---------|
 | Import `unlearn_run_utils` | **Justified** |
 | `_ref_forward_logits` + `ref_device` | **Justified** for multi-GPU ref forwards |
-| **`_denoise_novel_ga_loss` null_anchor: `model(...)` → `_ref_forward_logits(...)`** | **BUG — not justified** |
+| **`_denoise_novel_ga_loss` null_anchor: `model(...)` → `_ref_forward_logits(...)`** | **FIXED** — restored via `--null_anchor_source auto` (default) |
 | `_random_sft_null_anchor_loss` → `_ref_forward_logits` | **Justified** (same as upstream `ref_model`, adds GPU routing) |
 | NPO / traj_rollout → `_ref_forward_logits` | **Justified** |
 | HF data args, checkpoint args, W&B | **Justified** |
@@ -145,10 +145,41 @@ Added peft, tyro, wandb, lm-eval, etc. + dllm clone note.
 
 ---
 
+## Post-fix self-review (2026-06-22)
+
+### Fixed: `_denoise_novel_ga_loss` null-anchor regression
+
+| Path | Upstream | After fix (`null_anchor_source=auto`) |
+|------|----------|----------------------------------------|
+| `_denoise_novel_ga_loss` (position/token_id/…) | trainable `model`, Q-masked CFG | **same** via `_null_anchor_uncond_logits` |
+| `_random_sft_null_anchor_loss` | frozen `ref_model` | **same** (with optional `_ref_forward_logits` GPU split) |
+| `_traj_rollout_na_loss` | frozen `ref_model` | **same** via helper |
+| NPO (all paths) | frozen `ref_model` | **unchanged** |
+
+### New: `--null_anchor_source`
+
+| Value | Uncond logits | Loads ref? |
+|-------|---------------|------------|
+| `auto` (default) | random/traj → frozen SFT; denoise → trainable CFG | only when random/traj/NPO |
+| `frozen_sft` | always frozen ref | yes (null_anchor) |
+| `trainable_cfg` | always trainable CFG | no (null_anchor); single-GPU OK |
+
+### Script snapshots
+
+- Training: `unlearn_mdu_llada.py` / `unlearn_mdu_dream.py` copied to checkpoint dir at start + final save (`train_config.json` → `training_script_snapshot`).
+- Eval: `eval_tofu_llada.py` copied to `eval_outputs/<experiment>/<run_id>/` on first split.
+
+### Upstream parity check
+
+Compared `origin/main` denoise null-anchor block: restored `model(input_ids=noised_u, …)` behavior under `auto`.  
+Random/traj still use `ref_model` as upstream. NPO still requires ref. No change to retain path or GA losses.
+
+---
+
 ## Impact on completed τ runs
 
-τ sweep used `match_mode=random` + `null_anchor` → `_random_sft_null_anchor_loss` → **frozen `ref_model`**.  
-The `_denoise_novel_ga_loss` bug **did not affect** those runs.
+τ sweep used `match_mode=random` + `null_anchor` + default `null_anchor_source=auto` → `_random_sft_null_anchor_loss` → **frozen `ref_model`**.  
+The `_denoise_novel_ga_loss` bug **did not affect** those runs (unchanged behavior for random+auto).
 
 Runs may still differ from paper due to: RougeL recall vs F1, batch 2×8 vs 4×4, eval MC setup, SFT checkpoint path.
 
@@ -156,7 +187,8 @@ Runs may still differ from paper due to: RougeL recall vs F1, batch 2×8 vs 4×4
 
 ## Recommended follow-ups (not done in this PR)
 
-1. Revert `_denoise_novel_ga_loss` null-anchor in `unlearn_mdu_llada.py` to `model(...)` (match upstream + dream).
+1. ~~Revert `_denoise_novel_ga_loss` null-anchor~~ **Done** — use `--null_anchor_source auto` (default).
 2. Confirm `apply_disable_data_parallel` runs after Trainer device setup or verify no silent DataParallel.
 3. Optionally switch eval to `rougeL.fmeasure` for paper-aligned rL.
 4. Align `METRICS.md` random/`novel_percentile` description with actual `compute_loss` branch.
+5. Add `scripts/verify_ref_device_equivalence.py` for OOM-safe ref GPU roundtrip test.

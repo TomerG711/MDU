@@ -16,6 +16,8 @@
 #
 #   REF_DEVICE=auto|same|cuda:1   # frozen ref_model GPU (default: auto → cuda:1 if 2 GPUs)
 #   REF_DEVICE=same bash run_main.sh tofu_llada 0.5   # disable split, colocate both models
+#   NULL_ANCHOR_SOURCE=auto|frozen_sft|trainable_cfg  # uncond anchor (default: auto = upstream)
+#   CUDA_DEVICES=0     # single GPU when NULL_ANCHOR_SOURCE=trainable_cfg (no ref load)
 #   DISABLE_DP=auto|yes|no        # disable HF DataParallel (default: auto when ref is split)
 #   CUDA_VISIBLE_DEVICES=0,1      # required for ref split (train on 0, ref on 1)
 #
@@ -38,6 +40,7 @@ DREAM_BASE_SFT=${DREAM_BASE_SFT:-/path/to/Dream-TOFU-SFT-300ep}
 DREAM_BASE=${DREAM_BASE:-Dream-org/Dream-v0-Instruct-7B}
 CHECKPOINTS_ROOT=${CHECKPOINTS_ROOT:-./checkpoints}
 REF_DEVICE=${REF_DEVICE:-auto}
+NULL_ANCHOR_SOURCE=${NULL_ANCHOR_SOURCE:-auto}
 DISABLE_DP=${DISABLE_DP:-auto}
 CUDA_DEVICES=${CUDA_DEVICES:-0,1}
 export CUDA_VISIBLE_DEVICES="$CUDA_DEVICES"
@@ -68,6 +71,7 @@ MDU_ARGS=(
     --retain_tofu_split retain_perturbed
     --hf_dataset locuslab/TOFU
     --ref_device "$REF_DEVICE"
+    --null_anchor_source "$NULL_ANCHOR_SOURCE"
     --disable_data_parallel "$DISABLE_DP"
 )
 

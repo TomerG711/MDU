@@ -44,6 +44,9 @@ from unlearn_run_utils import (  # noqa: E402
     load_forget_retain_rows,
     maybe_add_wandb_callback,
     place_ref_model,
+    needs_ref_model,
+    null_anchor_uses_frozen_ref,
+    copy_script_snapshot,
     prepare_wandb_run_name,
     resolve_run_directory,
     rows_to_messages,
@@ -110,6 +113,7 @@ class MDUTrainer(DreamTrainer):
                  cat_cache_path="", cat_target_cats="3",
                  null_anchor_eta=0.0, null_anchor_kl_dir="forward",
                  null_anchor_tau=1.0,
+                 null_anchor_source="auto",
                  ref_device=None,
                  **kwargs):
         super().__init__(**kwargs)
@@ -130,6 +134,8 @@ class MDUTrainer(DreamTrainer):
         self.null_anchor_eta = float(null_anchor_eta)
         self.null_anchor_kl_dir = null_anchor_kl_dir
         self.null_anchor_tau = float(null_anchor_tau)
+        self.null_anchor_source = (null_anchor_source or "auto").strip().lower()
+        self.null_anchor_traj_rollout = False
         self.ref_model = ref_model
         self._ref_device = ref_device  # None → colocated with trainable model
         self.single_pass = single_pass
@@ -198,6 +204,27 @@ class MDUTrainer(DreamTrainer):
             outputs = self.ref_model(input_ids=ref_ids, attention_mask=ref_attn)
             outputs = self._postprocess_outputs(outputs)
             return outputs.logits.to(input_ids.device)
+
+    def _null_anchor_uses_frozen_ref(self) -> bool:
+        return null_anchor_uses_frozen_ref(
+            loss_type=self.loss_type,
+            null_anchor_source=self.null_anchor_source,
+            match_mode=self.match_mode,
+            null_anchor_traj_rollout=self.null_anchor_traj_rollout,
+        )
+
+    def _null_anchor_uncond_logits(self, model, noised_u, attention_mask=None):
+        """Uncond logits for null-anchor KL: frozen SFT ref or trainable CFG (Q-masked)."""
+        with torch.no_grad():
+            if self._null_anchor_uses_frozen_ref():
+                if self.ref_model is None:
+                    raise RuntimeError(
+                        "null_anchor_source requires frozen ref_model but ref_model is None"
+                    )
+                return self._ref_forward_logits(noised_u, attention_mask)
+            outputs_u = model(input_ids=noised_u, attention_mask=attention_mask)
+            outputs_u = self._postprocess_outputs(outputs_u)
+            return outputs_u.logits
 
     def _get_exclude_ids(self, device):
         if self._exclude_ids is not None:
@@ -876,10 +903,7 @@ class MDUTrainer(DreamTrainer):
             # Need an extra uncond forward (Q masked).
             q_mask = (~maskable_mask) & attention_mask.bool() if attention_mask is not None else (~maskable_mask)
             noised_u = torch.where(q_mask, mask_id, noised)
-            with torch.no_grad():
-                outputs_u = model(input_ids=noised_u, attention_mask=attention_mask)
-                outputs_u = self._postprocess_outputs(outputs_u)
-                logits_u = outputs_u.logits
+            logits_u = self._null_anchor_uncond_logits(model, noised_u, attention_mask)
             kl_per_token = self._null_anchor_kl(logits, logits_u)  # (B, T)
             weighted_kl = kl_per_token * loss_weight
             # Minimize directly (compute_loss adds it, doesn't negate)
@@ -1020,8 +1044,7 @@ class MDUTrainer(DreamTrainer):
         else:
             q_mask = ~maskable_mask
         noised_u = torch.where(q_mask, mask_id, noised)
-        with torch.no_grad():
-            logits_u = self._ref_forward_logits(noised_u, attention_mask)
+        logits_u = self._null_anchor_uncond_logits(model, noised_u, attention_mask)
 
         kl_per_token = self._null_anchor_kl(logits_c, logits_u)
         null_loss = (kl_per_token * masked_mask.float()).sum() / masked_mask.sum().clamp_min(1)
@@ -1031,7 +1054,8 @@ class MDUTrainer(DreamTrainer):
         logger.info(
             f"[null-anchor] masked={n_masked}/{n_maskable} "
             f"({100*n_masked/max(1,n_maskable):.1f}%) "
-            f"η={self.null_anchor_eta} τ={self.null_anchor_tau} dir={self.null_anchor_kl_dir} kl̄={null_loss.item():.4f}"
+            f"η={self.null_anchor_eta} τ={self.null_anchor_tau} dir={self.null_anchor_kl_dir} "
+            f"anchor={self.null_anchor_source} kl̄={null_loss.item():.4f}"
         )
         return null_loss, outputs_c
 
@@ -1355,6 +1379,14 @@ class DataArguments(dllm.utils.DataArguments):
                           "target = τ · [ℓ_∅ − η(ℓ_c − ℓ_∅)]. "
                           "τ=1 → NA canonical, τ=0 → uniform anchor, τ>1 → sharper."},
     )
+    null_anchor_source: str = field(
+        default="auto",
+        metadata={
+            "help": "null_anchor uncond logits source. "
+            "auto=upstream (random→frozen SFT ref; denoise modes→trainable CFG). "
+            "frozen_sft=always frozen ref_model. trainable_cfg=always trainable model."
+        },
+    )
     single_pass: bool = field(
         default=False,
         metadata={"help": "True: estimate novelty with a single forward pass instead of denoising."}
@@ -1545,7 +1577,8 @@ def train():
 
     ref_model = None
     ref_device_placed = None
-    if data_args.loss_type in ("npo", "null_anchor"):
+    load_ref = needs_ref_model(data_args)
+    if load_ref:
         ref_model = dllm.utils.get_model(model_args=model_args)
         for param in ref_model.parameters():
             param.requires_grad = False
@@ -1555,6 +1588,11 @@ def train():
             logger.info(f"[ref_model] anchor placed on {ref_device_placed} (ref_device={data_args.ref_device})")
         else:
             logger.info(f"[ref_model] anchor colocated with trainable model (ref_device={data_args.ref_device})")
+    elif data_args.loss_type in ("npo", "null_anchor"):
+        logger.info(
+            f"[ref_model] not loaded (null_anchor_source={data_args.null_anchor_source}, "
+            f"match_mode={data_args.match_mode})"
+        )
 
     apply_disable_data_parallel(
         training_args,
@@ -1585,6 +1623,11 @@ def train():
 
     accelerate.PartialState().wait_for_everyone()
 
+    _TRAIN_SCRIPT_PATH = os.path.abspath(__file__)
+    training_script_snapshot = None
+    if accelerate.PartialState().is_main_process:
+        training_script_snapshot = copy_script_snapshot(_TRAIN_SCRIPT_PATH, output_dir)
+
     if accelerate.PartialState().is_main_process:
         write_train_config(
             os.path.join(output_dir, "train_config.json"),
@@ -1596,12 +1639,19 @@ def train():
                 checkpoint_name=checkpoint_name,
             ),
         )
+        if training_script_snapshot is not None:
+            cfg_path = os.path.join(output_dir, "train_config.json")
+            with open(cfg_path, encoding="utf-8") as f:
+                cfg = json.load(f)
+            cfg["training_script_snapshot"] = training_script_snapshot
+            write_train_config(cfg_path, cfg)
     logger.info(
         f"Start MDU unlearning: "
         f"novel_percentile={data_args.novel_percentile}, "
         f"denoise_steps={data_args.denoise_steps}, "
         f"alpha={data_args.alpha}, "
         f"weight_beta={data_args.weight_beta}, loss_type={data_args.loss_type}, "
+        f"null_anchor_source={data_args.null_anchor_source}, "
         f"single_pass={data_args.single_pass}, "
         f"adaptive_threshold={data_args.adaptive_threshold}, adaptive_k={data_args.adaptive_k}, "
         f"match_mode={data_args.match_mode}, "
@@ -1620,6 +1670,7 @@ def train():
         null_anchor_eta=data_args.null_anchor_eta,
         null_anchor_kl_dir=data_args.null_anchor_kl_dir,
         null_anchor_tau=data_args.null_anchor_tau,
+        null_anchor_source=data_args.null_anchor_source,
         ref_model=ref_model,
         ref_device=ref_device_placed,
         single_pass=data_args.single_pass,
@@ -1674,6 +1725,7 @@ def train():
         training_args=training_args,
         data_source=data_source,
         checkpoint_name=checkpoint_name,
+        training_script_path=_TRAIN_SCRIPT_PATH,
     )
     logger.info(f"Saved checkpoint to {ckpt_dir}")
 

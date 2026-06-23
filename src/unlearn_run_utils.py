@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import glob
+import hashlib
 import json
 import os
 import platform
@@ -56,6 +57,59 @@ def place_ref_model(ref_model, ref_device: str) -> Optional[str]:
         return None
     ref_model.to(target)
     return target
+
+
+def null_anchor_uses_frozen_ref(
+    *,
+    loss_type: str,
+    null_anchor_source: str,
+    match_mode: str,
+    null_anchor_traj_rollout: bool,
+) -> bool:
+    """
+    Whether null-anchor uncond logits come from frozen SFT ref_model.
+
+    ``auto`` (upstream-compatible):
+      - ``match_mode=random`` or traj rollout → frozen ref
+      - denoise trajectory modes (position/token_id/…) → trainable CFG (same model, Q masked)
+    """
+    if loss_type != "null_anchor":
+        return False
+    key = (null_anchor_source or "auto").strip().lower()
+    if key in ("frozen_sft", "frozen", "ref"):
+        return True
+    if key in ("trainable_cfg", "trainable", "cfg"):
+        return False
+    if null_anchor_traj_rollout:
+        return True
+    if match_mode == "random":
+        return True
+    return False
+
+
+def needs_ref_model(data_args) -> bool:
+    """True when a separate frozen ref_model checkpoint must be loaded."""
+    if data_args.loss_type == "npo":
+        return True
+    if data_args.loss_type == "null_anchor":
+        return null_anchor_uses_frozen_ref(
+            loss_type=data_args.loss_type,
+            null_anchor_source=getattr(data_args, "null_anchor_source", "auto"),
+            match_mode=data_args.match_mode,
+            null_anchor_traj_rollout=getattr(data_args, "null_anchor_traj_rollout", False),
+        )
+    return False
+
+
+def copy_script_snapshot(src_path: str, dest_dir: str, dest_name: Optional[str] = None) -> dict:
+    """Copy a script into a run/checkpoint directory; return path + sha256 fingerprint."""
+    os.makedirs(dest_dir, exist_ok=True)
+    name = dest_name or os.path.basename(src_path)
+    dest_path = os.path.join(dest_dir, name)
+    shutil.copy2(src_path, dest_path)
+    with open(dest_path, "rb") as f:
+        digest = hashlib.sha256(f.read()).hexdigest()
+    return {"path": dest_path, "sha256": digest, "source": os.path.abspath(src_path)}
 
 
 def apply_disable_data_parallel(
@@ -272,6 +326,7 @@ def write_run_readme(path: str, *, checkpoint_name: str, output_dir: str) -> Non
         "  wandb_run.json     — W&B run link (entity, project, run_id, url)",
         "  wandb_run.txt      — one-line W&B URL",
         "  model weights + tokenizer — HuggingFace layout",
+        "  unlearn_mdu_llada.py — training script snapshot for this run",
         "",
         "W&B linkage (when --report_to wandb):",
         "  Local → W&B: train_config.json + wandb_run.json; checkpoint_name in config/summary",
@@ -506,6 +561,7 @@ def save_final_checkpoint(
     training_args,
     data_source: dict,
     checkpoint_name: str,
+    training_script_path: Optional[str] = None,
 ) -> str:
     """Save model, tokenizer, config manifest, and optional W&B link."""
     output_dir = training_args.output_dir
@@ -513,6 +569,10 @@ def save_final_checkpoint(
 
     trainer.save_model(output_dir)
     trainer.processing_class.save_pretrained(output_dir)
+
+    training_script_snapshot = None
+    if training_script_path and os.path.isfile(training_script_path):
+        training_script_snapshot = copy_script_snapshot(training_script_path, output_dir)
 
     copied = copy_model_python_files(model_args.model_name_or_path, output_dir)
     if not copied:
@@ -537,6 +597,8 @@ def save_final_checkpoint(
     )
     config["status"] = "completed"
     config["copied_python_files"] = [os.path.basename(p) for p in copied]
+    if training_script_snapshot is not None:
+        config["training_script_snapshot"] = training_script_snapshot
     write_train_config(os.path.join(output_dir, "train_config.json"), config)
     write_run_readme(
         os.path.join(output_dir, "README.txt"),
