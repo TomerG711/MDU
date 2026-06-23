@@ -11,3 +11,14 @@ tqdm
 sentencepiece
 rouge-score
 scikit-learn
+
+# dllm is not on PyPI — clone into ./dllm, then install these import deps:
+#   git clone https://github.com/ZHZisZZ/dllm.git dllm
+peft>=0.17.0
+tyro
+omegaconf
+torchmetrics
+rich
+trl
+lm-eval
+wandb>=0.16.0

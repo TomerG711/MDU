@@ -1,0 +1,76 @@
+{
+  "experiment": "mdu_tau0p75",
+  "run_id": "2026-06-22_mdu_tau0p75_v1",
+  "split": "real_authors",
+  "status": "completed",
+  "started_at": "2026-06-22T18:21:58.929292+00:00",
+  "argv": [
+    "/home/dsi/garbert/MDU/scripts/eval_tofu_llada.py",
+    "--model",
+    "./checkpoints/mdu_llada_forget10_nullanchor_tau0p75",
+    "--experiment",
+    "mdu_tau0p75",
+    "--run_id",
+    "2026-06-22_mdu_tau0p75_v1",
+    "--eval_outputs_root",
+    "./eval_outputs",
+    "--tofu_split",
+    "real_authors",
+    "--hf_dataset",
+    "locuslab/TOFU",
+    "--max_new_tokens",
+    "128",
+    "--steps",
+    "256",
+    "--mask_samples",
+    "128",
+    "--seed",
+    "42"
+  ],
+  "args": {
+    "model": "./checkpoints/mdu_llada_forget10_nullanchor_tau0p75",
+    "tofu_split": "real_authors",
+    "hf_dataset": "locuslab/TOFU",
+    "hf_split": "train",
+    "forget_file": "./data/tofu/forget01.json",
+    "perturbed_file": "./data/tofu/forget01_perturbed.json",
+    "output_dir": "./eval_outputs/mdu_tau0p75/2026-06-22_mdu_tau0p75_v1/splits/real_authors",
+    "experiment": "mdu_tau0p75",
+    "run_id": "2026-06-22_mdu_tau0p75_v1",
+    "eval_outputs_root": "./eval_outputs",
+    "force": false,
+    "max_new_tokens": 128,
+    "steps": 256,
+    "num_samples": null,
+    "mask_samples": 128,
+    "mc_batch_size": 128,
+    "truth_ratio": false,
+    "seed": 42,
+    "early_abort_n": 0,
+    "early_abort_threshold": 0.05,
+    "early_abort_mode": "below",
+    "suppress_special": false
+  },
+  "model": "./checkpoints/mdu_llada_forget10_nullanchor_tau0p75",
+  "eval_script": {
+    "path": "/home/dsi/garbert/MDU/scripts/eval_tofu_llada.py",
+    "sha256": "49b56f0aa82d0ccf86fc739e7d586c1ff5d2fd61199c6cabb4772307d26c7145"
+  },
+  "git": {
+    "root": "/home/dsi/garbert/MDU",
+    "commit": "e5e8e8274ff8f56f16e978803d9e902359eb5272",
+    "dirty": true
+  },
+  "environment": {
+    "python": "3.10.20",
+    "torch": "2.7.0+cu126",
+    "transformers": "4.57.0",
+    "hostname": "dsitirer01",
+    "cuda_visible_devices": "0"
+  },
+  "finished_at": "2026-06-22T18:29:15.083418+00:00",
+  "scores": {
+    "rougeL": 0.5685000000000001,
+    "probability": 0.13486046324293688
+  }
+}

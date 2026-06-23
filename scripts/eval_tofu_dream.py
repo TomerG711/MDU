@@ -8,6 +8,9 @@ Usage:
         --perturbed_file /path/to/forget01_perturbed.json \
         --output_dir /path/to/output
 
+    python eval_tofu_dream.py --model <model_path> \
+        --tofu_split forget10 --truth_ratio --output_dir /path/to/output
+
 Probability: exp(-ELBO_loss_per_token)  (Dream approximation)
 Truth Ratio: exp(gt_loss_per_token - perturb_loss_per_token)
 RougeL: generated output vs ground truth
@@ -21,8 +24,19 @@ import torch.nn.functional as F
 from transformers import AutoModel, AutoTokenizer
 from rouge_score import rouge_scorer
 
+import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from tofu_data import load_tofu_split
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", default="Dream-org/Dream-v0-Instruct-7B")
+parser.add_argument(
+    "--tofu_split",
+    default=None,
+    help="TOFU HF config name (e.g. forget10). Loads from Hugging Face instead of local JSONL.",
+)
+parser.add_argument("--hf_dataset", default="locuslab/TOFU", help="HF dataset repo")
+parser.add_argument("--hf_split", default="train", help="HF dataset split name")
 parser.add_argument("--forget_file", default="./data/tofu/forget01.json")
 parser.add_argument("--perturbed_file", default="./data/tofu/forget01_perturbed.json")
 parser.add_argument("--output_dir", default=None)
@@ -42,15 +56,6 @@ tokenizer = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)
 model = AutoModel.from_pretrained(args.model, torch_dtype=torch.bfloat16, trust_remote_code=True).to("cuda").eval()
 
 MASK_TOKEN_ID = tokenizer.mask_token_id or tokenizer.unk_token_id
-
-
-def load_jsonl(path):
-    data = []
-    with open(path) as f:
-        for line in f:
-            if line.strip():
-                data.append(json.loads(line.strip()))
-    return data
 
 
 def compute_eq14_loss(input_ids, attention_mask, answer_mask, n_samples=128, batch_size=32):
@@ -130,8 +135,14 @@ def generate_answer(question):
 
 
 # Load data
-forget_data = load_jsonl(args.forget_file)
-perturbed_data = load_jsonl(args.perturbed_file) if args.truth_ratio else []
+forget_data, perturbed_data = load_tofu_split(
+    tofu_split=args.tofu_split,
+    forget_file=args.forget_file,
+    perturbed_file=args.perturbed_file,
+    hf_dataset=args.hf_dataset,
+    hf_split=args.hf_split,
+    load_perturbed=args.truth_ratio,
+)
 if args.num_samples:
     forget_data = forget_data[:args.num_samples]
     if perturbed_data:
