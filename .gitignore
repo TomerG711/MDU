@@ -12,7 +12,6 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 
-# Eval per-sample dumps (keep summary/manifest/results in git)
-eval_outputs/**/details.jsonl
+# Eval run logs (per-sample details.jsonl are tracked in git)
 eval_outputs/**/run.log
 eval_outputs/**/*_launch.log

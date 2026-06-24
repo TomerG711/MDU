@@ -101,6 +101,75 @@ def needs_ref_model(data_args) -> bool:
     return False
 
 
+def describe_forget_loss_path(data_args) -> str:
+    """Human-readable forget-loss function selected by ``compute_loss``."""
+    if data_args.match_mode == "random":
+        if data_args.loss_type == "ga":
+            return "_random_ga_loss"
+        if data_args.loss_type == "npo":
+            return "_random_npo_loss"
+        if data_args.loss_type == "null_anchor":
+            if getattr(data_args, "null_anchor_traj_rollout", False):
+                return "_traj_rollout_na_loss"
+            return "_random_sft_null_anchor_loss"
+    return "_denoise_novel_ga_loss"
+
+
+def describe_null_anchor_uncond(data_args) -> Optional[str]:
+    """Resolved uncond anchor for null_anchor: ``frozen_sft`` or ``trainable_cfg``; else ``None``."""
+    if data_args.loss_type != "null_anchor":
+        return None
+    if null_anchor_uses_frozen_ref(
+        loss_type=data_args.loss_type,
+        null_anchor_source=getattr(data_args, "null_anchor_source", "auto"),
+        match_mode=data_args.match_mode,
+        null_anchor_traj_rollout=getattr(data_args, "null_anchor_traj_rollout", False),
+    ):
+        return "frozen_sft"
+    return "trainable_cfg"
+
+
+def build_mdu_setup_summary(
+    data_args,
+    *,
+    ref_loaded: bool,
+    ref_device_placed: Optional[str],
+) -> dict:
+    """Single source of truth for logs, train_config, and replication audits."""
+    uncond = describe_null_anchor_uncond(data_args)
+    return {
+        "loss_type": data_args.loss_type,
+        "match_mode": data_args.match_mode,
+        "forget_loss_path": describe_forget_loss_path(data_args),
+        "null_anchor_source": getattr(data_args, "null_anchor_source", "auto"),
+        "null_anchor_uncond_resolved": uncond,
+        "null_anchor_tau": getattr(data_args, "null_anchor_tau", None),
+        "null_anchor_traj_rollout": getattr(data_args, "null_anchor_traj_rollout", False),
+        "ref_model_loaded": ref_loaded,
+        "ref_device_placed": ref_device_placed,
+        "ref_device_arg": getattr(data_args, "ref_device", None),
+    }
+
+
+def format_mdu_setup_log(setup: dict) -> str:
+    """One-line training setup summary (logged once at run start)."""
+    parts = [
+        f"forget={setup['forget_loss_path']}",
+        f"match_mode={setup['match_mode']}",
+        f"loss_type={setup['loss_type']}",
+    ]
+    if setup["null_anchor_uncond_resolved"] is not None:
+        parts.append(f"uncond={setup['null_anchor_uncond_resolved']}")
+        parts.append(f"null_anchor_source={setup['null_anchor_source']}")
+        if setup.get("null_anchor_tau") is not None:
+            parts.append(f"τ={setup['null_anchor_tau']}")
+    ref = "loaded" if setup["ref_model_loaded"] else "not_loaded"
+    if setup["ref_device_placed"]:
+        ref += f"@{setup['ref_device_placed']}"
+    parts.append(f"ref_model={ref}")
+    return "[mdu-setup] " + " ".join(parts)
+
+
 def copy_script_snapshot(src_path: str, dest_dir: str, dest_name: Optional[str] = None) -> dict:
     """Copy a script into a run/checkpoint directory; return path + sha256 fingerprint."""
     os.makedirs(dest_dir, exist_ok=True)
@@ -213,6 +282,15 @@ def _backbone_tag(model_name_or_path: str) -> str:
     return os.path.basename(model_name_or_path.rstrip("/"))[:24] or "model"
 
 
+def _anchor_tag(null_anchor_source: str) -> str:
+    key = (null_anchor_source or "auto").strip().lower()
+    if key in ("frozen_sft", "frozen", "ref"):
+        return "frozen"
+    if key in ("trainable_cfg", "trainable", "cfg"):
+        return "cfg"
+    return key.replace("_", "")
+
+
 def default_checkpoint_name(
     *,
     model_name_or_path: str,
@@ -220,12 +298,18 @@ def default_checkpoint_name(
     loss_type: str,
     null_anchor_tau: float,
     match_mode: str,
+    null_anchor_source: str = "auto",
 ) -> str:
     backbone = _backbone_tag(model_name_or_path)
     split = (tofu_split or "local").replace("/", "_")
     if loss_type == "null_anchor":
         tau_s = f"{null_anchor_tau:g}".replace(".", "p")
-        return f"mdu_{backbone}_{split}_nullanchor_tau{tau_s}"
+        mode = match_mode.replace("/", "_")
+        anchor = _anchor_tag(null_anchor_source)
+        # Legacy: random + frozen (pre-grid τ sweep names)
+        if mode == "random" and anchor == "frozen":
+            return f"mdu_{backbone}_{split}_nullanchor_tau{tau_s}"
+        return f"mdu_{backbone}_{split}_{mode}_{anchor}_tau{tau_s}"
     mode = match_mode.replace("/", "_")
     return f"mdu_{backbone}_{split}_{loss_type}_{mode}"
 
@@ -245,6 +329,7 @@ def resolve_run_directory(
             loss_type=data_args.loss_type,
             null_anchor_tau=data_args.null_anchor_tau,
             match_mode=data_args.match_mode,
+            null_anchor_source=getattr(data_args, "null_anchor_source", "auto"),
         )
     root = getattr(training_args, "checkpoints_root", "./checkpoints")
     out_dir = os.path.join(root, name)

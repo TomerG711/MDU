@@ -1,36 +1,21 @@
 #!/usr/bin/env bash
-# Sequential MDU τ sweep (LLaDA / TOFU forget10): unlearn → eval → next τ.
+# MDU τ sweep (LLaDA / TOFU forget10): unlearn → eval for each τ.
 #
-# Paper / repo config: README.md + configs/mdu_tofu.yaml
-#   null_anchor, random masking, η=0, forward KL, α=1, denoise_steps=128
-#   lr=1e-5, 9 epochs, forget10 + retain_perturbed (HF locuslab/TOFU)
-#   paper microbatch 4×4; we default 2×8 (effective 16) for 2×A100 OOM safety
+# Sweeps τ only. Set match_mode + null_anchor_source once per invocation
+# (disk limit: ~20G per checkpoint — run 6 configs as separate jobs).
 #
-# Per τ, ONLY these change: --null_anchor_tau, --checkpoint_name, checkpoint/eval paths.
-# Starting model is always LLADA_BASE_SFT (same SFT checkpoint for every τ).
-#
-# Usage:
-#   cd /path/to/MDU
-#   export WANDB_API_KEY=...    # or: wandb login
-#   DRY_RUN=1 bash scripts/run_mdu_tau_sweep.sh
 #   bash scripts/run_mdu_tau_sweep.sh
-#   # overnight (recommended):
-#   nohup bash scripts/run_mdu_tau_sweep.sh > /dev/null 2>&1 &
-#   # master log is always written to SWEEP_MASTER_LOG (see below)
+#   MATCH_MODE=token_id NULL_ANCHOR_SOURCE=frozen_sft bash scripts/run_mdu_tau_sweep.sh
+#   MATCH_MODE=random NULL_ANCHOR_SOURCE=trainable_cfg bash scripts/run_mdu_tau_sweep.sh
 #
-# Resume / skip:
-#   SKIP_TAU_0=1            skip τ=0 (already done; default: 1)
-#   SKIP_TAU_0P5=1          skip τ=0.5 (already done; default: 1)
-#   START_FROM_TAU=0.25     begin at this τ (inclusive)
-#   SKIP_UNLEARN_IF_CKPT=1  skip training when checkpoint weights exist (default: 1)
-#   SKIP_EVAL_IF_DONE=1     skip eval splits already completed (default: 1)
+# Full 30-run grid = 6 invocations × 5 τ. See docs/SWEEP_GRID.md.
 #
-# Env (optional):
-#   LLADA_BASE_SFT, CHECKPOINTS_ROOT, EVAL_OUTPUTS_ROOT
-#   EVAL_DATE, EVAL_RUN_VERSION, WANDB_PROJECT, WANDB=1
-#   CUDA_DEVICES=0,1  REF_DEVICE=auto  DISABLE_DP=auto
-#   PER_DEVICE_BATCH=2  GRAD_ACCUM=8
-#   SWEEP_LOG_DIR, UNLEARN_LOG_DIR, SWEEP_MASTER_LOG
+# Env (per invocation):
+#   MATCH_MODE=random|token_id|position     (default: random)
+#   NULL_ANCHOR_SOURCE=frozen_sft|trainable_cfg  (default: frozen_sft)
+#   TAUS="0 0.25 0.5 0.75 1"
+#   NOVEL_PERCENTILE=100   # token_id/position (upstream)
+#   SKIP_UNLEARN_IF_CKPT=1  SKIP_EVAL_IF_DONE=1  START_FROM_TAU=
 
 set -euo pipefail
 
@@ -40,7 +25,9 @@ cd "${REPO_ROOT}"
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-TAUS=(0 0.25 0.5 0.75 1)
+read -r -a TAUS <<< "${TAUS:-0 0.25 0.5 0.75 1}"
+MATCH_MODE="${MATCH_MODE:-random}"
+NULL_ANCHOR_SOURCE="${NULL_ANCHOR_SOURCE:-frozen_sft}"
 
 LLADA_BASE_SFT="${LLADA_BASE_SFT:-./checkpoints/LLaDA-8B-Instruct-full-SFT-TOFU}"
 CHECKPOINTS_ROOT="${CHECKPOINTS_ROOT:-./checkpoints}"
@@ -48,21 +35,22 @@ EVAL_OUTPUTS_ROOT="${EVAL_OUTPUTS_ROOT:-./eval_outputs}"
 SWEEP_LOG_DIR="${SWEEP_LOG_DIR:-./sweep_logs}"
 UNLEARN_LOG_DIR="${UNLEARN_LOG_DIR:-./unlearn_logs}"
 
-CUDA_DEVICES="${CUDA_DEVICES:-0,1}"
-REF_DEVICE="${REF_DEVICE:-auto}"
-NULL_ANCHOR_SOURCE="${NULL_ANCHOR_SOURCE:-auto}"
-DISABLE_DP="${DISABLE_DP:-auto}"
+CUDA_DEVICES_FROZEN="${CUDA_DEVICES_FROZEN:-0,1}"
+CUDA_DEVICES_TRAINABLE="${CUDA_DEVICES_TRAINABLE:-0}"
+REF_DEVICE_FROZEN="${REF_DEVICE_FROZEN:-auto}"
+REF_DEVICE_TRAINABLE="${REF_DEVICE_TRAINABLE:-same}"
+DISABLE_DP_FROZEN="${DISABLE_DP_FROZEN:-auto}"
+DISABLE_DP_TRAINABLE="${DISABLE_DP_TRAINABLE:-yes}"
 
 LR="${LR:-1e-5}"
 EPO="${EPO:-9}"
 PER_DEVICE_BATCH="${PER_DEVICE_BATCH:-2}"
 GRAD_ACCUM="${GRAD_ACCUM:-8}"
+NOVEL_PERCENTILE="${NOVEL_PERCENTILE:-100}"
 
 WANDB="${WANDB:-1}"
 WANDB_PROJECT="${WANDB_PROJECT:-unlearning-dllms-MDU}"
 
-SKIP_TAU_0="${SKIP_TAU_0:-1}"
-SKIP_TAU_0P5="${SKIP_TAU_0P5:-1}"
 SKIP_UNLEARN_IF_CKPT="${SKIP_UNLEARN_IF_CKPT:-1}"
 SKIP_EVAL_IF_DONE="${SKIP_EVAL_IF_DONE:-1}"
 START_FROM_TAU="${START_FROM_TAU:-}"
@@ -70,10 +58,10 @@ DRY_RUN="${DRY_RUN:-0}"
 
 EVAL_DATE="${EVAL_DATE:-$(date +%Y-%m-%d)}"
 EVAL_RUN_VERSION="${EVAL_RUN_VERSION:-v1}"
+# Legacy eval run_ids (random + frozen_sft only)
 EVAL_RUN_ID_TAU_0="${EVAL_RUN_ID_TAU_0:-2026-06-22_mdu_tau0_v1}"
 EVAL_RUN_ID_TAU_0P5="${EVAL_RUN_ID_TAU_0P5:-2026-06-22_mdu_tau0p5_v1}"
 
-# Eval hyperparams (must match mdu_tau0p5 run and eval_tofu_llada.py defaults)
 EVAL_MAX_NEW_TOKENS="${EVAL_MAX_NEW_TOKENS:-128}"
 EVAL_STEPS="${EVAL_STEPS:-256}"
 EVAL_MASK_SAMPLES="${EVAL_MASK_SAMPLES:-128}"
@@ -85,16 +73,29 @@ EVAL_SCRIPT="${SCRIPT_DIR}/eval_tofu_llada.py"
 UNLEARN_SCRIPT="${REPO_ROOT}/src/unlearn_mdu_llada.py"
 
 export PYTHONPATH="${REPO_ROOT}/dllm:${REPO_ROOT}/src${PYTHONPATH:+:$PYTHONPATH}"
-export CUDA_VISIBLE_DEVICES="${CUDA_DEVICES}"
 
 mkdir -p "${SWEEP_LOG_DIR}" "${UNLEARN_LOG_DIR}" "${CHECKPOINTS_ROOT}"
 
-# Master sweep log (tee stdout+stderr). Re-entry safe via SWEEP_LOGGING_ACTIVE.
-SWEEP_MASTER_LOG="${SWEEP_MASTER_LOG:-${SWEEP_LOG_DIR}/mdu_tau_sweep_${EVAL_DATE}.log}"
-
-# ── Logging (stderr so command-substitution pid capture stays clean) ──────────
+# ── Logging ───────────────────────────────────────────────────────────────────
 
 log() { echo "[$(date -Iseconds)] $*" >&2; }
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+tau_slug() {
+  python3 -c "import sys; t=float(sys.argv[1]); print(f'{t:g}'.replace('.', 'p'))" "$1"
+}
+
+anchor_slug() {
+  case "$1" in
+    frozen_sft|frozen|ref) echo "frozen" ;;
+    trainable_cfg|trainable|cfg) echo "cfg" ;;
+    *) echo "$1" ;;
+  esac
+}
+
+ANCHOR_SLUG="$(anchor_slug "${NULL_ANCHOR_SOURCE}")"
+SWEEP_MASTER_LOG="${SWEEP_MASTER_LOG:-${SWEEP_LOG_DIR}/mdu_tau_sweep_${MATCH_MODE}_${ANCHOR_SLUG}_${EVAL_DATE}.log}"
 
 if [[ "${SWEEP_LOGGING_ACTIVE:-0}" != "1" && "${DRY_RUN}" != "1" ]]; then
   export SWEEP_LOGGING_ACTIVE=1
@@ -109,37 +110,70 @@ on_err() {
 }
 trap on_err ERR
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-tau_slug() {
-  python3 -c "import sys; t=float(sys.argv[1]); print(f'{t:g}'.replace('.', 'p'))" "$1"
+is_legacy_random_frozen() {
+  [[ "$1" == "random" && "$(anchor_slug "$2")" == "frozen" ]]
 }
 
-checkpoint_name_for_tau() {
-  echo "mdu_llada_forget10_nullanchor_tau$(tau_slug "$1")"
-}
-
-eval_experiment_for_tau() {
-  echo "mdu_tau$(tau_slug "$1")"
-}
-
-eval_run_id_for_tau() {
-  local tau="$1"
-  if [[ "${tau}" == "0" ]]; then
-    echo "${EVAL_RUN_ID_TAU_0}"
-  elif [[ "${tau}" == "0.5" ]]; then
-    echo "${EVAL_RUN_ID_TAU_0P5}"
+checkpoint_name_for_run() {
+  local tau="$1" match="$2" anchor="$3"
+  local slug; slug="$(tau_slug "${tau}")"
+  if is_legacy_random_frozen "${match}" "${anchor}"; then
+    echo "mdu_llada_forget10_nullanchor_tau${slug}"
   else
-    echo "${EVAL_DATE}_mdu_tau$(tau_slug "${tau}")_${EVAL_RUN_VERSION}"
+    echo "mdu_llada_forget10_${match}_$(anchor_slug "${anchor}")_tau${slug}"
   fi
 }
 
-checkpoint_dir_for_tau() {
-  echo "${CHECKPOINTS_ROOT}/$(checkpoint_name_for_tau "$1")"
+eval_experiment_for_run() {
+  local tau="$1" match="$2" anchor="$3"
+  if is_legacy_random_frozen "${match}" "${anchor}"; then
+    echo "mdu_tau$(tau_slug "${tau}")"
+  else
+    echo "mdu_${match}_$(anchor_slug "${anchor}")"
+  fi
 }
 
-eval_run_root_for_tau() {
-  echo "${EVAL_OUTPUTS_ROOT}/$(eval_experiment_for_tau "$1")/$(eval_run_id_for_tau "$1")"
+eval_run_id_for_run() {
+  local tau="$1" match="$2" anchor="$3"
+  if is_legacy_random_frozen "${match}" "${anchor}"; then
+    if [[ "${tau}" == "0" ]]; then
+      echo "${EVAL_RUN_ID_TAU_0}"
+    elif [[ "${tau}" == "0.5" ]]; then
+      echo "${EVAL_RUN_ID_TAU_0P5}"
+    else
+      echo "${EVAL_DATE}_mdu_tau$(tau_slug "${tau}")_${EVAL_RUN_VERSION}"
+    fi
+  else
+    echo "${EVAL_DATE}_tau$(tau_slug "${tau}")_${EVAL_RUN_VERSION}"
+  fi
+}
+
+checkpoint_dir_for_run() {
+  echo "${CHECKPOINTS_ROOT}/$(checkpoint_name_for_run "$1" "$2" "$3")"
+}
+
+eval_run_root_for_run() {
+  echo "${EVAL_OUTPUTS_ROOT}/$(eval_experiment_for_run "$1" "$2" "$3")/$(eval_run_id_for_run "$1" "$2" "$3")"
+}
+
+configure_gpus_for_anchor() {
+  local anchor="$1"
+  case "$(anchor_slug "${anchor}")" in
+    frozen)
+      export CUDA_VISIBLE_DEVICES="${CUDA_DEVICES_FROZEN}"
+      export REF_DEVICE="${REF_DEVICE_FROZEN}"
+      export DISABLE_DP="${DISABLE_DP_FROZEN}"
+      ;;
+    cfg)
+      export CUDA_VISIBLE_DEVICES="${CUDA_DEVICES_TRAINABLE}"
+      export REF_DEVICE="${REF_DEVICE_TRAINABLE}"
+      export DISABLE_DP="${DISABLE_DP_TRAINABLE}"
+      ;;
+    *)
+      log "ERROR: unknown anchor source: ${anchor}"
+      exit 1
+      ;;
+  esac
 }
 
 checkpoint_has_weights() {
@@ -172,24 +206,6 @@ all_evals_done() {
     && eval_split_done "${run_root}" retain_perturbed 400 \
     && eval_split_done "${run_root}" world_facts 117 \
     && eval_split_done "${run_root}" real_authors 100
-}
-
-should_skip_tau() {
-  local tau="$1"
-  [[ "${SKIP_TAU_0}" == "1" && "${tau}" == "0" ]] && return 0
-  [[ "${SKIP_TAU_0P5}" == "1" && "${tau}" == "0.5" ]] && return 0
-  return 1
-}
-
-skip_tau_reason() {
-  local tau="$1"
-  if [[ "${SKIP_TAU_0}" == "1" && "${tau}" == "0" ]]; then
-    echo "SKIP_TAU_0=1"
-  elif [[ "${SKIP_TAU_0P5}" == "1" && "${tau}" == "0.5" ]]; then
-    echo "SKIP_TAU_0P5=1"
-  else
-    echo "skip flag"
-  fi
 }
 
 past_start_tau() {
@@ -246,78 +262,35 @@ print_sweep_plan() {
   log "════════════════════════════════════════════════════════════════"
   log "Repo:              ${REPO_ROOT}"
   log "DRY_RUN:           ${DRY_RUN}"
-  log "τ values:          ${TAUS[*]}"
-  log "SKIP_TAU_0:         ${SKIP_TAU_0}"
-  log "SKIP_TAU_0P5:      ${SKIP_TAU_0P5}"
-  log "START_FROM_TAU:    ${START_FROM_TAU:-<start>}"
+  log "match_mode:        ${MATCH_MODE}"
+  log "null_anchor_src:   ${NULL_ANCHOR_SOURCE}"
+  log "τ values:          ${TAUS[*]}  (${#TAUS[@]} runs)"
   log ""
-  log "── Training (identical except τ + checkpoint name) ──"
+  log "── Training ──"
   log "Base model:        ${LLADA_BASE_SFT}"
-  log "Checkpoints root:  ${CHECKPOINTS_ROOT}"
-  log "loss_type:         null_anchor"
-  log "match_mode:        random"
-  log "alpha:             1.0"
-  log "null_anchor_eta:   0.0"
-  log "null_anchor_kl_dir: forward"
-  log "denoise_steps:     128"
-  log "max_new_tokens:    128"
-  log "tofu_split:        forget10"
-  log "retain_tofu_split: retain_perturbed"
-  log "hf_dataset:        locuslab/TOFU"
+  log "novel_percentile:  ${NOVEL_PERCENTILE} (token_id/position only)"
   log "epochs / lr:       ${EPO} / ${LR}"
-  log "batch × accum:     ${PER_DEVICE_BATCH} × ${GRAD_ACCUM} (effective $((PER_DEVICE_BATCH * GRAD_ACCUM)))"
-  log "save_strategy:     no"
-  log "Training GPUs:     CUDA_VISIBLE_DEVICES=${CUDA_DEVICES} (ref_device=${REF_DEVICE}, null_anchor_source=${NULL_ANCHOR_SOURCE}, disable_dp=${DISABLE_DP})"
-  log "Unlearn logs:      ${UNLEARN_LOG_DIR}/unlearn_<checkpoint>.log"
-  log ""
-  log "── W&B ──"
-  log "WANDB:             ${WANDB}"
-  log "WANDB_PROJECT:     ${WANDB_PROJECT}"
-  log "run_name:          <checkpoint_name> per τ (W&B tags include tau_*)"
-  log ""
-  log "── Eval (identical across τ except model path + experiment/run_id) ──"
-  log "Eval outputs root: ${EVAL_OUTPUTS_ROOT}"
-  log "max_new_tokens:    ${EVAL_MAX_NEW_TOKENS}"
-  log "steps:             ${EVAL_STEPS}"
-  log "mask_samples:      ${EVAL_MASK_SAMPLES}"
-  log "seed:              ${EVAL_SEED}"
-  log "truth_ratio:       false"
-  log "hf_dataset:        locuslab/TOFU"
-  log "Eval schedule:     forget10(GPU0) ∥ retain_perturbed(GPU1); 1st done→WF, 2nd done→RA (pipelined)"
-  log "Eval logs:         ${SWEEP_LOG_DIR}/eval_<checkpoint>_<split>.log"
-  log "Post-eval:         eval_tofu_llada.py rebuilds summary.json + manifest.json per split"
+  log "batch × accum:     ${PER_DEVICE_BATCH} × ${GRAD_ACCUM}"
+  log "GPUs (this run):   CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-?} ref_device=${REF_DEVICE:-?}"
   log ""
   log "── Per-τ paths ──"
   local tau
   for tau in "${TAUS[@]}"; do
-    if should_skip_tau "${tau}"; then
-      log "  τ=${tau}  SKIP ($(skip_tau_reason "${tau}"))"
-      continue
-    fi
     if ! past_start_tau "${tau}"; then
       log "  τ=${tau}  SKIP (before START_FROM_TAU)"
       continue
     fi
     log "  τ=${tau}"
-    log "    ckpt:     $(checkpoint_dir_for_tau "${tau}")"
-    log "    eval:     $(eval_run_root_for_tau "${tau}")"
-    log "    wandb:    project=${WANDB_PROJECT} name=$(checkpoint_name_for_tau "${tau}")"
+    log "    ckpt: $(checkpoint_dir_for_run "${tau}" "${MATCH_MODE}" "${NULL_ANCHOR_SOURCE}")"
+    log "    eval: $(eval_run_root_for_run "${tau}" "${MATCH_MODE}" "${NULL_ANCHOR_SOURCE}")"
   done
   log "════════════════════════════════════════════════════════════════"
 }
 
-print_tau_plan() {
-  local tau="$1"
-  log "── τ=${tau} ──"
-  log "  varies:  null_anchor_tau=${tau}, checkpoint=$(checkpoint_name_for_tau "${tau}")"
-  log "  ckpt:    $(checkpoint_dir_for_tau "${tau}")"
-  log "  eval:    $(eval_run_root_for_tau "${tau}")"
-}
-
 post_eval_validate() {
-  local tau="$1"
+  local tau="$1" match="$2" anchor="$3"
   local run_root
-  run_root="$(eval_run_root_for_tau "${tau}")"
+  run_root="$(eval_run_root_for_run "${tau}" "${match}" "${anchor}")"
   local summary="${run_root}/summary.json"
   local manifest="${run_root}/manifest.json"
 
@@ -329,32 +302,25 @@ post_eval_validate() {
     log "ERROR: missing ${manifest}"
     exit 1
   fi
-
-  log "Post-eval OK τ=${tau}"
-  log "  summary:  ${summary}"
-  log "  manifest: ${manifest}"
-  python3 - <<PY
-import json
-s = json.load(open("${summary}"))
-print(json.dumps(s, indent=2))
-PY
+  log "Post-eval OK τ=${tau} match=${match} anchor=${anchor}"
 }
 
 # ── Unlearning ────────────────────────────────────────────────────────────────
 
 run_unlearn() {
-  local tau="$1"
+  local tau="$1" match="$2" anchor="$3"
   local ckpt_name ckpt_dir log_file
-  ckpt_name="$(checkpoint_name_for_tau "${tau}")"
-  ckpt_dir="$(checkpoint_dir_for_tau "${tau}")"
+  ckpt_name="$(checkpoint_name_for_run "${tau}" "${match}" "${anchor}")"
+  ckpt_dir="$(checkpoint_dir_for_run "${tau}" "${match}" "${anchor}")"
   log_file="${UNLEARN_LOG_DIR}/unlearn_${ckpt_name}.log"
 
   if [[ "${SKIP_UNLEARN_IF_CKPT}" == "1" ]] && checkpoint_has_weights "${ckpt_dir}"; then
-    log "Skip unlearn τ=${tau}: checkpoint exists at ${ckpt_dir}"
+    log "Skip unlearn τ=${tau}: ckpt exists at ${ckpt_dir}"
     return 0
   fi
 
   log "Unlearn τ=${tau} → ${ckpt_dir} (log: ${log_file})"
+
   local -a wandb_args=()
   if [[ "${WANDB}" == "1" ]]; then
     export WANDB_PROJECT="${WANDB_PROJECT}"
@@ -364,6 +330,11 @@ run_unlearn() {
       --wandb_project "${WANDB_PROJECT}"
       --run_name "${ckpt_name}"
     )
+  fi
+
+  local -a traj_args=()
+  if [[ "${match}" != "random" ]]; then
+    traj_args=(--novel_percentile "${NOVEL_PERCENTILE}")
   fi
 
   if [[ "${DRY_RUN}" == "1" ]]; then
@@ -379,7 +350,8 @@ run_unlearn() {
     --retain_tofu_split retain_perturbed \
     --hf_dataset locuslab/TOFU \
     --loss_type null_anchor \
-    --match_mode random \
+    --match_mode "${match}" \
+    --null_anchor_source "${anchor}" \
     --alpha 1.0 \
     --null_anchor_tau "${tau}" \
     --null_anchor_eta 0.0 \
@@ -392,25 +364,22 @@ run_unlearn() {
     --gradient_accumulation_steps "${GRAD_ACCUM}" \
     --save_strategy no \
     --ref_device "${REF_DEVICE}" \
-    --null_anchor_source "${NULL_ANCHOR_SOURCE}" \
     --disable_data_parallel "${DISABLE_DP}" \
+    "${traj_args[@]}" \
     "${wandb_args[@]}" \
     > "${log_file}" 2>&1 &
 
   local pid=$!
-  log "Unlearn started pid=${pid}"
-  wait_pid "${pid}" "unlearn τ=${tau}"
+  wait_pid "${pid}" "unlearn τ=${tau} match=${match} anchor=${anchor}"
 
   if ! checkpoint_has_weights "${ckpt_dir}"; then
-    log "ERROR: no weights in ${ckpt_dir} after training (see ${log_file})"
+    log "ERROR: no weights in ${ckpt_dir} (see ${log_file})"
     exit 1
   fi
-  log "Unlearn τ=${tau} OK: ${ckpt_dir}"
 }
 
-# ── Eval (pipelined: F∥R, then WF/RA on first two GPU frees) ───────────────────
+# ── Eval (pipelined) ──────────────────────────────────────────────────────────
 
-# Launch eval in current shell; caller reads $! immediately (never pid=$(...)).
 run_eval_split() {
   local gpu="$1"
   local model="$2"
@@ -420,10 +389,9 @@ run_eval_split() {
   local log_suffix="$6"
 
   local log_file="${SWEEP_LOG_DIR}/eval_${log_suffix}.log"
-  log "Eval ${split} on physical GPU ${gpu} → ${log_file}"
+  log "Eval ${split} on GPU ${gpu} → ${log_file}"
 
   if [[ "${DRY_RUN}" == "1" ]]; then
-    log "[dry-run] eval ${split} (experiment=${experiment} run_id=${run_id})"
     return 0
   fi
 
@@ -441,7 +409,6 @@ run_eval_split() {
     > "${log_file}" 2>&1 &
 }
 
-# Remove one PID from a nameref array.
 _eval_remove_pid() {
   local target="$1"
   local -n _arr=$2
@@ -453,7 +420,6 @@ _eval_remove_pid() {
   _arr=("${kept[@]}")
 }
 
-# Wait until one tracked PID exits; sets nameref $2 to that PID. Never use wait -n.
 _eval_wait_any() {
   local -n _pids=$1
   local -n _finished=$2
@@ -478,7 +444,6 @@ _eval_wait_any() {
   done
 }
 
-# Track a launched eval in active_pids / pid_gpu / pid_split namerefs.
 _eval_track() {
   local pid="$1" gpu="$2" split="$3"
   local -n _active=$4
@@ -489,10 +454,30 @@ _eval_track() {
   _split_map["${pid}"]="${split}"
 }
 
-# Pipelined eval: F@0 ∥ R@1; 1st finish→WF on that GPU; 2nd finish→RA on that GPU.
 run_evals_pipelined() {
-  local tau="$1" model="$2" experiment="$3" run_id="$4" slug="$5"
-  local need_forget="$6" need_retain="$7" need_wf="$8" need_ra="$9"
+  local tau="$1" match="$2" anchor="$3"
+  local model experiment run_id slug
+  model="$(checkpoint_dir_for_run "${tau}" "${match}" "${anchor}")"
+  experiment="$(eval_experiment_for_run "${tau}" "${match}" "${anchor}")"
+  run_id="$(eval_run_id_for_run "${tau}" "${match}" "${anchor}")"
+  slug="$(checkpoint_name_for_run "${tau}" "${match}" "${anchor}")"
+
+  local need_forget=1 need_retain=1 need_wf=1 need_ra=1
+  local run_root
+  run_root="$(eval_run_root_for_run "${tau}" "${match}" "${anchor}")"
+
+  if [[ "${SKIP_EVAL_IF_DONE}" == "1" ]]; then
+    eval_split_done "${run_root}" forget10 400 && need_forget=0
+    eval_split_done "${run_root}" retain_perturbed 400 && need_retain=0
+    eval_split_done "${run_root}" world_facts 117 && need_wf=0
+    eval_split_done "${run_root}" real_authors 100 && need_ra=0
+  fi
+
+  if [[ "${need_forget}" == "0" && "${need_retain}" == "0" && "${need_wf}" == "0" && "${need_ra}" == "0" ]]; then
+    log "Skip eval: all splits done under ${run_root}"
+    post_eval_validate "${tau}" "${match}" "${anchor}"
+    return 0
+  fi
 
   local -a active_pids=()
   declare -A pid_gpu=()
@@ -506,26 +491,19 @@ run_evals_pipelined() {
     fi
     local pid=$!
     _eval_track "${pid}" "${gpu}" "${split}" active_pids pid_gpu pid_split
-    log "  started ${split} pid=${pid} gpu=${gpu}"
   }
 
   local seeds=$((need_forget + need_retain))
-
   if [[ "${DRY_RUN}" == "1" ]]; then
-    log "[dry-run] pipelined eval (seeds=${seeds} need_wf=${need_wf} need_ra=${need_ra})"
     [[ "${need_forget}" == "1" ]] && _eval_launch 0 forget10 "${slug}_forget10"
     [[ "${need_retain}" == "1" ]] && _eval_launch 1 retain_perturbed "${slug}_retain"
-    [[ "${seeds}" -eq 0 && "${need_wf}" == "1" ]] && _eval_launch 0 world_facts "${slug}_world_facts"
-    [[ "${seeds}" -eq 0 && "${need_ra}" == "1" ]] && _eval_launch 1 real_authors "${slug}_real_authors"
     return 0
   fi
 
   if [[ "${seeds}" -eq 0 ]]; then
-    log "Eval pipeline: forget/retain skipped → WF/RA only"
     [[ "${need_wf}" == "1" ]] && _eval_launch 0 world_facts "${slug}_world_facts"
     [[ "${need_ra}" == "1" ]] && _eval_launch 1 real_authors "${slug}_real_authors"
   else
-    log "Eval pipeline: forget∥retain; 1st done→WF, 2nd done→RA (max 1 job/GPU)"
     [[ "${need_forget}" == "1" ]] && _eval_launch 0 forget10 "${slug}_forget10"
     [[ "${need_retain}" == "1" ]] && _eval_launch 1 retain_perturbed "${slug}_retain"
   fi
@@ -534,74 +512,31 @@ run_evals_pipelined() {
   while ((${#active_pids[@]} > 0)); do
     local finished gpu split
     if ! _eval_wait_any active_pids finished; then
-      log "ERROR: eval wait failed τ=${tau}"
       exit 1
     fi
     gpu="${pid_gpu[${finished}]:-?}"
     split="${pid_split[${finished}]:-?}"
     _eval_remove_pid "${finished}" active_pids
     completions=$((completions + 1))
-    log "Eval ${split} finished (gpu=${gpu}, completion #${completions})"
-
+    log "Eval ${split} finished (gpu=${gpu}, #${completions})"
     if [[ "${completions}" -eq 1 && "${need_wf}" == "1" ]]; then
       _eval_launch "${gpu}" world_facts "${slug}_world_facts"
     elif [[ "${completions}" -eq 2 && "${need_ra}" == "1" ]]; then
       _eval_launch "${gpu}" real_authors "${slug}_real_authors"
     fi
   done
-}
 
-run_evals_for_tau() {
-  local tau="$1"
-  local model experiment run_id run_root slug
-  model="$(checkpoint_dir_for_tau "${tau}")"
-  experiment="$(eval_experiment_for_tau "${tau}")"
-  run_id="$(eval_run_id_for_tau "${tau}")"
-  run_root="$(eval_run_root_for_tau "${tau}")"
-  slug="$(checkpoint_name_for_tau "${tau}")"
-
-  if [[ ! -d "${model}" ]] && [[ "${DRY_RUN}" != "1" ]]; then
-    log "ERROR: eval model not found: ${model}"
+  if ! all_evals_done "${run_root}"; then
+    log "ERROR: eval incomplete under ${run_root}"
     exit 1
   fi
-
-  if [[ "${SKIP_EVAL_IF_DONE}" == "1" ]] && all_evals_done "${run_root}"; then
-    log "Skip eval τ=${tau}: all splits done under ${run_root}"
-    post_eval_validate "${tau}"
-    return 0
-  fi
-
-  log "Eval τ=${tau} model=${model} run_root=${run_root}"
-
-  local need_forget=1 need_retain=1 need_wf=1 need_ra=1
-  if [[ "${SKIP_EVAL_IF_DONE}" == "1" ]]; then
-    eval_split_done "${run_root}" forget10 400 && need_forget=0
-    eval_split_done "${run_root}" retain_perturbed 400 && need_retain=0
-    eval_split_done "${run_root}" world_facts 117 && need_wf=0
-    eval_split_done "${run_root}" real_authors 100 && need_ra=0
-  fi
-
-  if [[ "${need_forget}" == "0" && "${need_retain}" == "0" && "${need_wf}" == "0" && "${need_ra}" == "0" ]]; then
-    log "All eval splits already done for τ=${tau}"
-    post_eval_validate "${tau}"
-    return 0
-  fi
-
-  run_evals_pipelined "${tau}" "${model}" "${experiment}" "${run_id}" "${slug}" \
-    "${need_forget}" "${need_retain}" "${need_wf}" "${need_ra}"
-
-  if [[ "${DRY_RUN}" != "1" ]]; then
-    if ! all_evals_done "${run_root}"; then
-      log "ERROR: eval incomplete for τ=${tau} under ${run_root}"
-      exit 1
-    fi
-    post_eval_validate "${tau}"
-  fi
+  post_eval_validate "${tau}" "${match}" "${anchor}"
 }
 
-# ── Main loop ─────────────────────────────────────────────────────────────────
+# ── Main ──────────────────────────────────────────────────────────────────────
 
 validate_prerequisites
+configure_gpus_for_anchor "${NULL_ANCHOR_SOURCE}"
 print_sweep_plan
 
 for tau in "${TAUS[@]}"; do
@@ -609,24 +544,18 @@ for tau in "${TAUS[@]}"; do
     log "Skip τ=${tau} (before START_FROM_TAU=${START_FROM_TAU})"
     continue
   fi
-  if should_skip_tau "${tau}"; then
-    log "Skip τ=${tau} ($(skip_tau_reason "${tau}"))"
-    continue
-  fi
 
   log ""
   log "════════════════════════════════════════════════════════════════"
-  log "START τ=${tau}"
+  log "START τ=${tau}  match=${MATCH_MODE}  anchor=${NULL_ANCHOR_SOURCE}"
   log "════════════════════════════════════════════════════════════════"
-  print_tau_plan "${tau}"
 
-  run_unlearn "${tau}"
-  run_evals_for_tau "${tau}"
+  run_unlearn "${tau}" "${MATCH_MODE}" "${NULL_ANCHOR_SOURCE}"
+  run_evals_pipelined "${tau}" "${MATCH_MODE}" "${NULL_ANCHOR_SOURCE}"
 
   log "COMPLETE τ=${tau}"
 done
 
 log ""
-log "MDU τ sweep finished successfully."
+log "MDU τ sweep finished (match=${MATCH_MODE} anchor=${NULL_ANCHOR_SOURCE})."
 log "Master log: ${SWEEP_MASTER_LOG}"
-log "If new τ completed: update eval_outputs/RESULTS.md from each run's summary.json."

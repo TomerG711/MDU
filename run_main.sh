@@ -16,6 +16,8 @@
 #
 #   REF_DEVICE=auto|same|cuda:1   # frozen ref_model GPU (default: auto → cuda:1 if 2 GPUs)
 #   REF_DEVICE=same bash run_main.sh tofu_llada 0.5   # disable split, colocate both models
+#   MATCH_MODE=random|token_id|position   # default: random
+#   NOVEL_PERCENTILE=100                    # for token_id/position (upstream TOFU)
 #   NULL_ANCHOR_SOURCE=auto|frozen_sft|trainable_cfg  # uncond anchor (default: auto = upstream)
 #   CUDA_DEVICES=0     # single GPU when NULL_ANCHOR_SOURCE=trainable_cfg (no ref load)
 #   DISABLE_DP=auto|yes|no        # disable HF DataParallel (default: auto when ref is split)
@@ -60,7 +62,7 @@ fi
 
 MDU_ARGS=(
     --loss_type null_anchor
-    --match_mode random
+    --match_mode "${MATCH_MODE:-random}"
     --alpha 1.0
     --null_anchor_tau "$TAU"
     --null_anchor_eta 0.0
@@ -74,6 +76,11 @@ MDU_ARGS=(
     --null_anchor_source "$NULL_ANCHOR_SOURCE"
     --disable_data_parallel "$DISABLE_DP"
 )
+
+# Upstream TOFU uses novel_percentile=100 for trajectory modes (token_id/position)
+if [ "${MATCH_MODE:-random}" != "random" ]; then
+    MDU_ARGS+=(--novel_percentile "${NOVEL_PERCENTILE:-100}")
+fi
 
 case "$PRESET" in
     tofu_llada)

@@ -32,6 +32,8 @@ In code: `target_logits = tau * logits_u.detach()`, then forward KL between `log
 
 Our τ sweep uses `match_mode=random` with `novel_percentile=100` (all answer tokens masked for null-anchor KL).
 
+**Uncond anchor source:** see [docs/NULL_ANCHOR_AND_REF.md](../docs/NULL_ANCHOR_AND_REF.md) for `null_anchor_source`, ref_model loading, and GPU split.
+
 ---
 
 ## RougeL (recall, precision, F1)

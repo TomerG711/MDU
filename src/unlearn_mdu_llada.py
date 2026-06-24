@@ -63,6 +63,8 @@ from unlearn_run_utils import (  # noqa: E402
     needs_ref_model,
     null_anchor_uses_frozen_ref,
     copy_script_snapshot,
+    build_mdu_setup_summary,
+    format_mdu_setup_log,
     prepare_wandb_run_name,
     resolve_run_directory,
     rows_to_messages,
@@ -247,6 +249,9 @@ class MDUTrainer(MDLMTrainer):
             outputs_u = model(input_ids=noised_u, attention_mask=attention_mask)
             outputs_u = self._postprocess_outputs(outputs_u)
             return outputs_u.logits
+
+    def _null_anchor_uncond_label(self) -> str:
+        return "frozen_sft" if self._null_anchor_uses_frozen_ref() else "trainable_cfg"
 
     def _get_exclude_ids(self, device):
         if self._exclude_ids is not None:
@@ -1146,7 +1151,7 @@ class MDUTrainer(MDLMTrainer):
         logger.info(
             f"[na-traj-rollout] stop_step={stop_step}/{T}  masked={n_masked}/{n_total} "
             f"({100.0*n_masked/max(n_total,1):.1f}%) η={self.null_anchor_eta} τ={self.null_anchor_tau} "
-            f"dir={self.null_anchor_kl_dir} anchor={self.null_anchor_source} kl̄={null_loss.item():.4f}"
+            f"dir={self.null_anchor_kl_dir} uncond={self._null_anchor_uncond_label()} kl̄={null_loss.item():.4f}"
         )
         return null_loss, outputs_c
 
@@ -1191,7 +1196,7 @@ class MDUTrainer(MDLMTrainer):
             f"[null-anchor] masked={n_masked}/{n_maskable} "
             f"({100*n_masked/max(1,n_maskable):.1f}%) "
             f"η={self.null_anchor_eta} τ={self.null_anchor_tau} dir={self.null_anchor_kl_dir} "
-            f"anchor={self.null_anchor_source} kl̄={null_loss.item():.4f}"
+            f"uncond={self._null_anchor_uncond_label()} kl̄={null_loss.item():.4f}"
         )
         return null_loss, outputs_c
 
@@ -1734,27 +1739,26 @@ def train():
     ref_model = None
     ref_device_placed = None
     load_ref = needs_ref_model(data_args)
+    mdu_setup = build_mdu_setup_summary(
+        data_args, ref_loaded=load_ref, ref_device_placed=None,
+    )
     if load_ref:
         ref_model = dllm.utils.get_model(model_args=model_args)
         for param in ref_model.parameters():
             param.requires_grad = False
         ref_model.eval()
         ref_device_placed = place_ref_model(ref_model, data_args.ref_device)
-        if ref_device_placed:
-            logger.info(f"[ref_model] anchor placed on {ref_device_placed} (ref_device={data_args.ref_device})")
-        else:
-            logger.info(f"[ref_model] anchor colocated with trainable model (ref_device={data_args.ref_device})")
-    elif data_args.loss_type in ("npo", "null_anchor"):
-        logger.info(
-            f"[ref_model] not loaded (null_anchor_source={data_args.null_anchor_source}, "
-            f"match_mode={data_args.match_mode}, traj_rollout={data_args.null_anchor_traj_rollout})"
-        )
+        mdu_setup["ref_device_placed"] = ref_device_placed
+    else:
+        ref_device_placed = None
 
     apply_disable_data_parallel(
         training_args,
         training_args.disable_data_parallel,
         ref_device_placed,
     )
+
+    logger.info(format_mdu_setup_log(mdu_setup))
 
     forget_rows, retain_rows, data_source = load_forget_retain_rows(data_args)
 
@@ -1785,33 +1789,19 @@ def train():
         training_script_snapshot = copy_script_snapshot(_TRAIN_SCRIPT_PATH, output_dir)
 
     if accelerate.PartialState().is_main_process:
-        write_train_config(
-            os.path.join(output_dir, "train_config.json"),
-            build_train_config(
-                model_args=model_args,
-                data_args=data_args,
-                training_args=training_args,
-                data_source=data_source,
-                checkpoint_name=checkpoint_name,
-            ),
+        cfg = build_train_config(
+            model_args=model_args,
+            data_args=data_args,
+            training_args=training_args,
+            data_source=data_source,
+            checkpoint_name=checkpoint_name,
         )
+        cfg["mdu_setup"] = mdu_setup
         if training_script_snapshot is not None:
-            cfg_path = os.path.join(output_dir, "train_config.json")
-            with open(cfg_path, encoding="utf-8") as f:
-                cfg = json.load(f)
             cfg["training_script_snapshot"] = training_script_snapshot
-            write_train_config(cfg_path, cfg)
+        write_train_config(os.path.join(output_dir, "train_config.json"), cfg)
     logger.info(
-        f"Start MDU unlearning: "
-        f"novel_percentile={data_args.novel_percentile}, "
-        f"denoise_steps={data_args.denoise_steps}, "
-        f"alpha={data_args.alpha}, "
-        f"weight_beta={data_args.weight_beta}, loss_type={data_args.loss_type}, "
-        f"null_anchor_source={data_args.null_anchor_source}, "
-        f"single_pass={data_args.single_pass}, "
-        f"adaptive_threshold={data_args.adaptive_threshold}, adaptive_k={data_args.adaptive_k}, "
-        f"match_mode={data_args.match_mode}, "
-        f"forget={len(forget_ds)}, retain={len(retain_ds) if data_args.alpha != 0 else 0}"
+        f"MDU dataset: forget={len(forget_ds)}, retain={len(retain_ds) if data_args.alpha != 0 else 0}"
     )
 
     trainer = MDUTrainer(
