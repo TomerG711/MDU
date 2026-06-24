@@ -415,6 +415,7 @@ class MDUTrainer(MDLMTrainer):
                     if n_unmask == 0:
                         continue
 
+                    logits = model(input_ids=x).logits
                     logits = self._postprocess_outputs(
                         type("O", (), {"logits": logits})()
                     ).logits
