@@ -1760,6 +1760,11 @@ def train():
     )
 
     logger.info(format_mdu_setup_log(mdu_setup))
+    if training_args.gradient_checkpointing:
+        logger.info(
+            "[mdu-setup] gradient_checkpointing=True "
+            f"(kwargs={training_args.gradient_checkpointing_kwargs})"
+        )
 
     forget_rows, retain_rows, data_source = load_forget_retain_rows(data_args)
 

@@ -21,6 +21,7 @@
 #   NULL_ANCHOR_SOURCE=auto|frozen_sft|trainable_cfg  # uncond anchor (default: auto = upstream)
 #   CUDA_DEVICES=0     # single GPU when NULL_ANCHOR_SOURCE=trainable_cfg (no ref load)
 #   DISABLE_DP=auto|yes|no        # disable HF DataParallel (default: auto when ref is split)
+#   GRADIENT_CHECKPOINTING=1      # reduce backward memory (position/token_id + trainable_cfg)
 #   CUDA_VISIBLE_DEVICES=0,1      # required for ref split (train on 0, ref on 1)
 #
 # Examples:
@@ -44,6 +45,7 @@ CHECKPOINTS_ROOT=${CHECKPOINTS_ROOT:-./checkpoints}
 REF_DEVICE=${REF_DEVICE:-auto}
 NULL_ANCHOR_SOURCE=${NULL_ANCHOR_SOURCE:-auto}
 DISABLE_DP=${DISABLE_DP:-auto}
+GRADIENT_CHECKPOINTING=${GRADIENT_CHECKPOINTING:-0}
 CUDA_DEVICES=${CUDA_DEVICES:-0,1}
 export CUDA_VISIBLE_DEVICES="$CUDA_DEVICES"
 WANDB_PROJECT=${WANDB_PROJECT:-unlearning-dllms-MDU}
@@ -82,6 +84,14 @@ if [ "${MATCH_MODE:-random}" != "random" ]; then
     MDU_ARGS+=(--novel_percentile "${NOVEL_PERCENTILE:-100}")
 fi
 
+GC_ARGS=()
+if [ "${GRADIENT_CHECKPOINTING}" = "1" ]; then
+    GC_ARGS=(
+        --gradient_checkpointing
+        --gradient_checkpointing_kwargs '{"use_reentrant":false}'
+    )
+fi
+
 case "$PRESET" in
     tofu_llada)
         accelerate launch --num_processes 1 src/unlearn_mdu_llada.py \
@@ -91,6 +101,7 @@ case "$PRESET" in
             --num_train_epochs "$EPO" --learning_rate "$LR" \
             --per_device_train_batch_size 4 --gradient_accumulation_steps 4 \
             --save_strategy no \
+            "${GC_ARGS[@]}" \
             "${WANDB_ARGS[@]}"
         ;;
 
@@ -102,6 +113,7 @@ case "$PRESET" in
             --num_train_epochs "$EPO" --learning_rate "$LR" \
             --per_device_train_batch_size 4 --gradient_accumulation_steps 4 \
             --save_strategy no \
+            "${GC_ARGS[@]}" \
             "${WANDB_ARGS[@]}"
         ;;
 

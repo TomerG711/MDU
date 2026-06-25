@@ -15,6 +15,7 @@
 #   NULL_ANCHOR_SOURCE=frozen_sft|trainable_cfg  (default: frozen_sft)
 #   TAUS="0 0.25 0.5 0.75 1"
 #   NOVEL_PERCENTILE=100   # token_id/position (upstream)
+#   GRADIENT_CHECKPOINTING=1  # reduce Pass-2 backward memory (position/token_id)
 #   SKIP_UNLEARN_IF_CKPT=1  SKIP_EVAL_IF_DONE=1  START_FROM_TAU=
 
 set -euo pipefail
@@ -47,6 +48,7 @@ EPO="${EPO:-9}"
 PER_DEVICE_BATCH="${PER_DEVICE_BATCH:-2}"
 GRAD_ACCUM="${GRAD_ACCUM:-8}"
 NOVEL_PERCENTILE="${NOVEL_PERCENTILE:-100}"
+GRADIENT_CHECKPOINTING="${GRADIENT_CHECKPOINTING:-0}"
 
 WANDB="${WANDB:-1}"
 WANDB_PROJECT="${WANDB_PROJECT:-unlearning-dllms-MDU}"
@@ -271,6 +273,7 @@ print_sweep_plan() {
   log "novel_percentile:  ${NOVEL_PERCENTILE} (token_id/position only)"
   log "epochs / lr:       ${EPO} / ${LR}"
   log "batch × accum:     ${PER_DEVICE_BATCH} × ${GRAD_ACCUM}"
+  log "grad checkpoint:   ${GRADIENT_CHECKPOINTING}"
   log "GPUs (this run):   CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-?} ref_device=${REF_DEVICE:-?}"
   log ""
   log "── Per-τ paths ──"
@@ -337,6 +340,14 @@ run_unlearn() {
     traj_args=(--novel_percentile "${NOVEL_PERCENTILE}")
   fi
 
+  local -a gc_args=()
+  if [[ "${GRADIENT_CHECKPOINTING}" == "1" ]]; then
+    gc_args=(
+      --gradient_checkpointing
+      --gradient_checkpointing_kwargs '{"use_reentrant":false}'
+    )
+  fi
+
   if [[ "${DRY_RUN}" == "1" ]]; then
     log "[dry-run] would run accelerate launch → ${log_file}"
     return 0
@@ -366,6 +377,7 @@ run_unlearn() {
     --ref_device "${REF_DEVICE}" \
     --disable_data_parallel "${DISABLE_DP}" \
     "${traj_args[@]}" \
+    "${gc_args[@]}" \
     "${wandb_args[@]}" \
     > "${log_file}" 2>&1 &
 
