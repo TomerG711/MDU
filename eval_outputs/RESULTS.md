@@ -9,7 +9,7 @@ Per-run provenance: `summary.json` / `manifest.json` under each `<experiment>/<r
 
 ---
 
-## Sweep status (2026-06-25)
+## Sweep status (2026-06-26)
 
 | Sweep | `match_mode` | `null_anchor_source` | τ values | Eval splits | Status |
 |-------|--------------|----------------------|----------|-------------|--------|
@@ -17,6 +17,7 @@ Per-run provenance: `summary.json` / `manifest.json` under each `<experiment>/<r
 | `mdu_tau*` | `random` | `frozen_sft` | 0 … 1 | 20/20 | complete |
 | `mdu_random_cfg` | `random` | `trainable_cfg` | 0 … 1 | 20/20 | complete |
 | `mdu_position_cfg` | `position` | `trainable_cfg` | 0 … 1 | 20/20 | complete |
+| `mdu_position_frozen` | `position` | `frozen_sft` | 0 … 1 | 20/20 | complete |
 
 All eval splits validated: `status=completed`, expected line counts (400 / 400 / 117 / 100).
 
@@ -123,15 +124,41 @@ Checkpoints (weights on disk): `checkpoints/mdu_llada_forget10_position_cfg_tau{
 
 ---
 
+## Position + frozen SFT ref (`mdu_position_frozen`)
+
+**Training:** `match_mode=position`, `null_anchor_source=frozen_sft`, `novel_percentile=100`, `denoise_steps=128`, `GRADIENT_CHECKPOINTING=1`, `ref_device=auto`, GPUs 0+1, 9 ep, lr=1e-5, batch 2×8. Sweep completed 2026-06-26 (`sweep_logs/mdu_tau_sweep_position_frozen_2026-06-25.log`). First attempt without GC OOM'd at step 12; relaunched with `GRADIENT_CHECKPOINTING=1`.
+
+| | Forget rL | Forget p | Retain rL | Retain p | RA rL | RA p | WF rL | WF p |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **τ=0.00** | 0.060 | 0.002 | 0.871 | 0.502 | 0.490 | 0.116 | 0.806 | 0.223 |
+| **τ=0.25** | 0.022 | 0.000 | 0.852 | 0.522 | 0.512 | 0.123 | 0.791 | 0.207 |
+| **τ=0.50** | 0.108 | 0.025 | 0.801 | 0.525 | 0.481 | 0.120 | 0.777 | 0.204 |
+| **τ=0.75** | 0.160 | 0.183 | 0.643 | 0.489 | 0.462 | 0.102 | 0.752 | 0.189 |
+| **τ=1.00** | 0.172 | 0.225 | 0.544 | 0.475 | 0.451 | 0.095 | 0.750 | 0.178 |
+
+**vs position+cfg (forget rL):** τ=0 identical (0.060); τ=0.25–0.75 frozen is 0.006–0.05 higher (weaker unlearn); τ=1.0 tied (~0.17). **Retain:** similar at τ≤0.25; frozen drops harder at τ≥0.5 (e.g. τ=1: 0.544 vs 0.631 cfg).
+
+| τ | Eval | W&B |
+|---|------|-----|
+| 0 | [`2026-06-25_tau0_v1`](./mdu_position_frozen/2026-06-25_tau0_v1/) | [run](https://wandb.ai/model-validation/unlearning-dllms-MDU/runs/pk23qkx1) |
+| 0.25 | [`2026-06-25_tau0p25_v1`](./mdu_position_frozen/2026-06-25_tau0p25_v1/) | [run](https://wandb.ai/model-validation/unlearning-dllms-MDU/runs/llnlzp1i) |
+| 0.5 | [`2026-06-25_tau0p5_v1`](./mdu_position_frozen/2026-06-25_tau0p5_v1/) | [run](https://wandb.ai/model-validation/unlearning-dllms-MDU/runs/ergpy8xv) |
+| 0.75 | [`2026-06-25_tau0p75_v1`](./mdu_position_frozen/2026-06-25_tau0p75_v1/) | [run](https://wandb.ai/model-validation/unlearning-dllms-MDU/runs/7zsrbt71) |
+| 1 | [`2026-06-25_tau1_v1`](./mdu_position_frozen/2026-06-25_tau1_v1/) | [run](https://wandb.ai/model-validation/unlearning-dllms-MDU/runs/ucozgdsa) |
+
+Checkpoints (weights on disk): `checkpoints/mdu_llada_forget10_position_frozen_tau{0,0p25,0p5,0p75,1}/`.
+
+---
+
 ## Cross-sweep forget RougeL (τ comparison)
 
-| τ | Paper | Frozen random | Random CFG | Position CFG |
-|---|:---:|:---:|:---:|:---:|
-| 0.00 | 0.069 | 0.087 | 0.087 | **0.060** |
-| 0.25 | 0.135 | 0.233 | 0.183 | **0.016** |
-| 0.50 | 0.098 | 0.566 | 0.486 | **0.057** |
-| 0.75 | 0.078 | 0.564 | 0.507 | 0.120 |
-| 1.00 | 0.034 | 0.561 | 0.482 | 0.171 |
+| τ | Paper | Frozen random | Random CFG | Position CFG | Position frozen |
+|---|:---:|:---:|:---:|:---:|:---:|
+| 0.00 | 0.069 | 0.087 | 0.087 | **0.060** | **0.060** |
+| 0.25 | 0.135 | 0.233 | 0.183 | **0.016** | 0.022 |
+| 0.50 | 0.098 | 0.566 | 0.486 | **0.057** | 0.108 |
+| 0.75 | 0.078 | 0.564 | 0.507 | **0.120** | 0.160 |
+| 1.00 | 0.034 | 0.561 | 0.482 | 0.171 | 0.172 |
 
 ---
 
@@ -140,3 +167,4 @@ Checkpoints (weights on disk): `checkpoints/mdu_llada_forget10_position_cfg_tau{
 - **Paper Base SFT** = LLaDA-8B-Instruct after 1000-epoch TOFU SFT (paper). **Our SFT** is a separate checkpoint (`2026-06-22_sft_v1`); RougeL is similar but Eq. (14) probability runs higher.
 - **Position sweep interruptions (resolved):** τ=0.25 unlearn and τ=0.5 eval were each killed once mid-run (no traceback; likely external SIGKILL). Resumed with `nohup`; final metrics use completed eval run roots above. Orphan eval stub `mdu_position_cfg/2026-06-24_tau0p5_v1/` (no splits) is not used.
 - **τ=0.5 eval run_id:** completed eval is `2026-06-25_tau0p5_v1` (resume date), not `2026-06-24_tau0p5_v1`.
+- **Position+frozen OOM (resolved):** without `GRADIENT_CHECKPOINTING`, both position+frozen and position+cfg OOM at optimizer step 12 (`mdu #75`, NOVEL=134/153). GC run completed all 5 τ.
