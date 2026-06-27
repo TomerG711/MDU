@@ -9,7 +9,7 @@ Per-run provenance: `summary.json` / `manifest.json` under each `<experiment>/<r
 
 ---
 
-## Sweep status (2026-06-26)
+## Sweep status (2026-06-27)
 
 | Sweep | `match_mode` | `null_anchor_source` | τ values | Eval splits | Status |
 |-------|--------------|----------------------|----------|-------------|--------|
@@ -18,6 +18,7 @@ Per-run provenance: `summary.json` / `manifest.json` under each `<experiment>/<r
 | `mdu_random_cfg` | `random` | `trainable_cfg` | 0 … 1 | 20/20 | complete |
 | `mdu_position_cfg` | `position` | `trainable_cfg` | 0 … 1 | 20/20 | complete |
 | `mdu_position_frozen` | `position` | `frozen_sft` | 0 … 1 | 20/20 | complete |
+| `mdu_token_id_frozen` | `token_id` | `frozen_sft` | 0 … 1 | 20/20 | complete |
 
 All eval splits validated: `status=completed`, expected line counts (400 / 400 / 117 / 100).
 
@@ -150,15 +151,43 @@ Checkpoints (weights on disk): `checkpoints/mdu_llada_forget10_position_frozen_t
 
 ---
 
+## Token ID + frozen SFT ref (`mdu_token_id_frozen`)
+
+**Training:** `match_mode=token_id`, `null_anchor_source=frozen_sft`, `novel_percentile=100`, `denoise_steps=128`, `GRADIENT_CHECKPOINTING=1`, `ref_device=auto`, GPUs 0+1, 9 ep, lr=1e-5, batch 2×8. Sweep completed 2026-06-27 (`sweep_logs/mdu_tau_sweep_token_id_frozen_2026-06-26.log`). Paper-likely upstream config (code default `match_mode=token_id`; upstream `run_main.sh` passes `novel_percentile=100`).
+
+| | Forget rL | Forget p | Retain rL | Retain p | RA rL | RA p | WF rL | WF p |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **τ=0.00** | 0.061 | 0.001 | 0.876 | 0.509 | 0.514 | 0.124 | 0.817 | 0.214 |
+| **τ=0.25** | 0.048 | 0.000 | 0.872 | 0.524 | 0.519 | 0.131 | 0.794 | 0.221 |
+| **τ=0.50** | 0.343 | 0.080 | 0.787 | 0.473 | 0.506 | 0.121 | 0.790 | 0.210 |
+| **τ=0.75** | 0.365 | 0.303 | 0.740 | 0.515 | 0.527 | 0.119 | 0.772 | 0.211 |
+| **τ=1.00** | 0.423 | 0.319 | 0.747 | 0.513 | 0.545 | 0.113 | 0.758 | 0.211 |
+
+**vs paper (forget rL):** τ=0.0/0.25 match or beat paper; **τ≥0.5 forget degrades sharply** (0.34–0.42 vs paper ~0.03–0.10) while retain stays relatively high (~0.74–0.79).
+
+**vs position+frozen (forget rL):** τ=0 tied (~0.06); τ=0.25–1.0 token_id is much weaker (e.g. τ=0.5: 0.343 vs 0.108 position frozen, 0.057 position cfg).
+
+| τ | Eval | W&B |
+|---|------|-----|
+| 0 | [`2026-06-26_tau0_v1`](./mdu_token_id_frozen/2026-06-26_tau0_v1/) | [run](https://wandb.ai/model-validation/unlearning-dllms-MDU/runs/t6nylcbc) |
+| 0.25 | [`2026-06-26_tau0p25_v1`](./mdu_token_id_frozen/2026-06-26_tau0p25_v1/) | [run](https://wandb.ai/model-validation/unlearning-dllms-MDU/runs/ua27z2n2) |
+| 0.5 | [`2026-06-26_tau0p5_v1`](./mdu_token_id_frozen/2026-06-26_tau0p5_v1/) | [run](https://wandb.ai/model-validation/unlearning-dllms-MDU/runs/37f917nv) |
+| 0.75 | [`2026-06-26_tau0p75_v1`](./mdu_token_id_frozen/2026-06-26_tau0p75_v1/) | [run](https://wandb.ai/model-validation/unlearning-dllms-MDU/runs/d1f404vm) |
+| 1 | [`2026-06-26_tau1_v1`](./mdu_token_id_frozen/2026-06-26_tau1_v1/) | [run](https://wandb.ai/model-validation/unlearning-dllms-MDU/runs/qbmour9c) |
+
+Checkpoints (weights on disk): `checkpoints/mdu_llada_forget10_token_id_frozen_tau{0,0p25,0p5,0p75,1}/`.
+
+---
+
 ## Cross-sweep forget RougeL (τ comparison)
 
-| τ | Paper | Frozen random | Random CFG | Position CFG | Position frozen |
-|---|:---:|:---:|:---:|:---:|:---:|
-| 0.00 | 0.069 | 0.087 | 0.087 | **0.060** | **0.060** |
-| 0.25 | 0.135 | 0.233 | 0.183 | **0.016** | 0.022 |
-| 0.50 | 0.098 | 0.566 | 0.486 | **0.057** | 0.108 |
-| 0.75 | 0.078 | 0.564 | 0.507 | **0.120** | 0.160 |
-| 1.00 | 0.034 | 0.561 | 0.482 | 0.171 | 0.172 |
+| τ | Paper | Frozen random | Random CFG | Position CFG | Position frozen | Token ID frozen |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| 0.00 | 0.069 | 0.087 | 0.087 | **0.060** | **0.060** | 0.061 |
+| 0.25 | 0.135 | 0.233 | 0.183 | **0.016** | 0.022 | 0.048 |
+| 0.50 | 0.098 | 0.566 | 0.486 | **0.057** | 0.108 | 0.343 |
+| 0.75 | 0.078 | 0.564 | 0.507 | **0.120** | 0.160 | 0.365 |
+| 1.00 | 0.034 | 0.561 | 0.482 | 0.171 | 0.172 | 0.423 |
 
 ---
 
@@ -168,3 +197,4 @@ Checkpoints (weights on disk): `checkpoints/mdu_llada_forget10_position_frozen_t
 - **Position sweep interruptions (resolved):** τ=0.25 unlearn and τ=0.5 eval were each killed once mid-run (no traceback; likely external SIGKILL). Resumed with `nohup`; final metrics use completed eval run roots above. Orphan eval stub `mdu_position_cfg/2026-06-24_tau0p5_v1/` (no splits) is not used.
 - **τ=0.5 eval run_id:** completed eval is `2026-06-25_tau0p5_v1` (resume date), not `2026-06-24_tau0p5_v1`.
 - **Position+frozen OOM (resolved):** without `GRADIENT_CHECKPOINTING`, both position+frozen and position+cfg OOM at optimizer step 12 (`mdu #75`, NOVEL=134/153). GC run completed all 5 τ.
+- **Token ID vs position:** upstream default `match_mode=token_id`, but our token_id+frozen sweep shows much weaker unlearning at τ≥0.5 than position modes despite identical τ=0 results. Best overall forget remains position+cfg at τ≈0.25.
