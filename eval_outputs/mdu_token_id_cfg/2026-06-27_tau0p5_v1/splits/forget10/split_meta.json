@@ -1,0 +1,76 @@
+{
+  "experiment": "mdu_token_id_cfg",
+  "run_id": "2026-06-27_tau0p5_v1",
+  "split": "forget10",
+  "status": "completed",
+  "started_at": "2026-06-27T19:20:42.620134+00:00",
+  "argv": [
+    "/home/dsi/garbert/MDU/scripts/eval_tofu_llada.py",
+    "--model",
+    "./checkpoints/mdu_llada_forget10_token_id_cfg_tau0p5",
+    "--experiment",
+    "mdu_token_id_cfg",
+    "--run_id",
+    "2026-06-27_tau0p5_v1",
+    "--eval_outputs_root",
+    "./eval_outputs",
+    "--tofu_split",
+    "forget10",
+    "--hf_dataset",
+    "locuslab/TOFU",
+    "--max_new_tokens",
+    "128",
+    "--steps",
+    "256",
+    "--mask_samples",
+    "128",
+    "--seed",
+    "42"
+  ],
+  "args": {
+    "model": "./checkpoints/mdu_llada_forget10_token_id_cfg_tau0p5",
+    "tofu_split": "forget10",
+    "hf_dataset": "locuslab/TOFU",
+    "hf_split": "train",
+    "forget_file": "./data/tofu/forget01.json",
+    "perturbed_file": "./data/tofu/forget01_perturbed.json",
+    "output_dir": "./eval_outputs/mdu_token_id_cfg/2026-06-27_tau0p5_v1/splits/forget10",
+    "experiment": "mdu_token_id_cfg",
+    "run_id": "2026-06-27_tau0p5_v1",
+    "eval_outputs_root": "./eval_outputs",
+    "force": false,
+    "max_new_tokens": 128,
+    "steps": 256,
+    "num_samples": null,
+    "mask_samples": 128,
+    "mc_batch_size": 128,
+    "truth_ratio": false,
+    "seed": 42,
+    "early_abort_n": 0,
+    "early_abort_threshold": 0.05,
+    "early_abort_mode": "below",
+    "suppress_special": false
+  },
+  "model": "./checkpoints/mdu_llada_forget10_token_id_cfg_tau0p5",
+  "eval_script": {
+    "path": "/home/dsi/garbert/MDU/scripts/eval_tofu_llada.py",
+    "sha256": "b44945763f4c8f1f1e62ee1f1a5df0fc14b2926af2c3d2cd1340280ec08d2dfd"
+  },
+  "git": {
+    "root": "/home/dsi/garbert/MDU",
+    "commit": "acd40960b8fc266e1b16e21373fe9e7c5b715efb",
+    "dirty": true
+  },
+  "environment": {
+    "python": "3.10.20",
+    "torch": "2.7.0+cu126",
+    "transformers": "4.57.0",
+    "hostname": "dsitirer01",
+    "cuda_visible_devices": "0"
+  },
+  "finished_at": "2026-06-27T19:55:59.888166+00:00",
+  "scores": {
+    "rougeL": 0.0921439048987166,
+    "probability": 0.0007721612535298647
+  }
+}
