@@ -99,7 +99,26 @@ anchor_slug() {
   esac
 }
 
-ANCHOR_SLUG="$(anchor_slug "${NULL_ANCHOR_SOURCE}")"
+ema_decay_slug() {
+  python3 -c "import sys; d=float(sys.argv[1]); print(f'{d:g}'.replace('.', 'p'))" "$1"
+}
+
+# EMA checkpoints/evals include decay when not the legacy default (0.999 → plain "ema").
+effective_anchor_slug() {
+  local anchor="$1"
+  local base; base="$(anchor_slug "${anchor}")"
+  if [[ "${base}" != "ema" ]]; then
+    echo "${base}"
+    return
+  fi
+  if [[ "${NULL_ANCHOR_EMA_DECAY}" == "0.999" ]]; then
+    echo "ema"
+  else
+    echo "ema$(ema_decay_slug "${NULL_ANCHOR_EMA_DECAY}")"
+  fi
+}
+
+ANCHOR_SLUG="$(effective_anchor_slug "${NULL_ANCHOR_SOURCE}")"
 SWEEP_MASTER_LOG="${SWEEP_MASTER_LOG:-${SWEEP_LOG_DIR}/mdu_tau_sweep_${MATCH_MODE}_${ANCHOR_SLUG}_${EVAL_DATE}.log}"
 
 if [[ "${SWEEP_LOGGING_ACTIVE:-0}" != "1" && "${DRY_RUN}" != "1" ]]; then
@@ -125,7 +144,7 @@ checkpoint_name_for_run() {
   if is_legacy_random_frozen "${match}" "${anchor}"; then
     echo "mdu_llada_forget10_nullanchor_tau${slug}"
   else
-    echo "mdu_llada_forget10_${match}_$(anchor_slug "${anchor}")_tau${slug}"
+    echo "mdu_llada_forget10_${match}_$(effective_anchor_slug "${anchor}")_tau${slug}"
   fi
 }
 
@@ -134,7 +153,7 @@ eval_experiment_for_run() {
   if is_legacy_random_frozen "${match}" "${anchor}"; then
     echo "mdu_tau$(tau_slug "${tau}")"
   else
-    echo "mdu_${match}_$(anchor_slug "${anchor}")"
+    echo "mdu_${match}_$(effective_anchor_slug "${anchor}")"
   fi
 }
 
@@ -269,6 +288,9 @@ print_sweep_plan() {
   log "DRY_RUN:           ${DRY_RUN}"
   log "match_mode:        ${MATCH_MODE}"
   log "null_anchor_src:   ${NULL_ANCHOR_SOURCE}"
+  if [[ "$(anchor_slug "${NULL_ANCHOR_SOURCE}")" == "ema" ]]; then
+    log "ema_decay:         ${NULL_ANCHOR_EMA_DECAY} (slug: ${ANCHOR_SLUG})"
+  fi
   log "τ values:          ${TAUS[*]}  (${#TAUS[@]} runs)"
   log ""
   log "── Training ──"
