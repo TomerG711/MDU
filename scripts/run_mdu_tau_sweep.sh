@@ -12,7 +12,8 @@
 #
 # Env (per invocation):
 #   MATCH_MODE=random|token_id|position     (default: random)
-#   NULL_ANCHOR_SOURCE=frozen_sft|trainable_cfg  (default: frozen_sft)
+#   NULL_ANCHOR_SOURCE=frozen_sft|trainable_cfg|ema  (default: frozen_sft)
+#   NULL_ANCHOR_EMA_DECAY=0.999   # when NULL_ANCHOR_SOURCE=ema
 #   TAUS="0 0.25 0.5 0.75 1"
 #   NOVEL_PERCENTILE=100   # token_id/position (upstream)
 #   GRADIENT_CHECKPOINTING=1  # reduce Pass-2 backward memory (position/token_id)
@@ -48,6 +49,7 @@ EPO="${EPO:-9}"
 PER_DEVICE_BATCH="${PER_DEVICE_BATCH:-2}"
 GRAD_ACCUM="${GRAD_ACCUM:-8}"
 NOVEL_PERCENTILE="${NOVEL_PERCENTILE:-100}"
+NULL_ANCHOR_EMA_DECAY="${NULL_ANCHOR_EMA_DECAY:-0.999}"
 GRADIENT_CHECKPOINTING="${GRADIENT_CHECKPOINTING:-0}"
 
 WANDB="${WANDB:-1}"
@@ -92,6 +94,7 @@ anchor_slug() {
   case "$1" in
     frozen_sft|frozen|ref) echo "frozen" ;;
     trainable_cfg|trainable|cfg) echo "cfg" ;;
+    ema|ema_sft|ema_cfg) echo "ema" ;;
     *) echo "$1" ;;
   esac
 }
@@ -161,7 +164,7 @@ eval_run_root_for_run() {
 configure_gpus_for_anchor() {
   local anchor="$1"
   case "$(anchor_slug "${anchor}")" in
-    frozen)
+    frozen|ema)
       export CUDA_VISIBLE_DEVICES="${CUDA_DEVICES_FROZEN}"
       export REF_DEVICE="${REF_DEVICE_FROZEN}"
       export DISABLE_DP="${DISABLE_DP_FROZEN}"
@@ -363,6 +366,7 @@ run_unlearn() {
     --loss_type null_anchor \
     --match_mode "${match}" \
     --null_anchor_source "${anchor}" \
+    --null_anchor_ema_decay "${NULL_ANCHOR_EMA_DECAY}" \
     --alpha 1.0 \
     --null_anchor_tau "${tau}" \
     --null_anchor_eta 0.0 \

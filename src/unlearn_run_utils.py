@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 import accelerate
+import torch
 import transformers
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -59,6 +60,42 @@ def place_ref_model(ref_model, ref_device: str) -> Optional[str]:
     return target
 
 
+def null_anchor_source_key(null_anchor_source: str) -> str:
+    return (null_anchor_source or "auto").strip().lower()
+
+
+def resolve_null_anchor_uncond(
+    *,
+    loss_type: str,
+    null_anchor_source: str,
+    match_mode: str,
+    null_anchor_traj_rollout: bool,
+) -> Optional[str]:
+    """
+    Resolved uncond anchor for null-anchor KL.
+
+    Returns ``frozen_sft``, ``trainable_cfg``, ``ema``, or ``None`` (non-null_anchor).
+
+    ``auto`` (upstream-compatible):
+      - ``match_mode=random`` or traj rollout → frozen SFT ref
+      - denoise trajectory modes (position/token_id/…) → trainable CFG (Q masked)
+    """
+    if loss_type != "null_anchor":
+        return None
+    key = null_anchor_source_key(null_anchor_source)
+    if key in ("ema", "ema_sft", "ema_cfg"):
+        return "ema"
+    if key in ("frozen_sft", "frozen", "ref"):
+        return "frozen_sft"
+    if key in ("trainable_cfg", "trainable", "cfg"):
+        return "trainable_cfg"
+    if null_anchor_traj_rollout:
+        return "frozen_sft"
+    if match_mode == "random":
+        return "frozen_sft"
+    return "trainable_cfg"
+
+
 def null_anchor_uses_frozen_ref(
     *,
     loss_type: str,
@@ -66,25 +103,29 @@ def null_anchor_uses_frozen_ref(
     match_mode: str,
     null_anchor_traj_rollout: bool,
 ) -> bool:
-    """
-    Whether null-anchor uncond logits come from frozen SFT ref_model.
+    """Whether null-anchor uncond logits come from frozen SFT ref_model."""
+    return resolve_null_anchor_uncond(
+        loss_type=loss_type,
+        null_anchor_source=null_anchor_source,
+        match_mode=match_mode,
+        null_anchor_traj_rollout=null_anchor_traj_rollout,
+    ) == "frozen_sft"
 
-    ``auto`` (upstream-compatible):
-      - ``match_mode=random`` or traj rollout → frozen ref
-      - denoise trajectory modes (position/token_id/…) → trainable CFG (same model, Q masked)
-    """
-    if loss_type != "null_anchor":
-        return False
-    key = (null_anchor_source or "auto").strip().lower()
-    if key in ("frozen_sft", "frozen", "ref"):
-        return True
-    if key in ("trainable_cfg", "trainable", "cfg"):
-        return False
-    if null_anchor_traj_rollout:
-        return True
-    if match_mode == "random":
-        return True
-    return False
+
+def null_anchor_uses_ema(
+    *,
+    loss_type: str,
+    null_anchor_source: str,
+    match_mode: str,
+    null_anchor_traj_rollout: bool,
+) -> bool:
+    """Whether null-anchor uncond logits come from an EMA copy of the trainable model."""
+    return resolve_null_anchor_uncond(
+        loss_type=loss_type,
+        null_anchor_source=null_anchor_source,
+        match_mode=match_mode,
+        null_anchor_traj_rollout=null_anchor_traj_rollout,
+    ) == "ema"
 
 
 def needs_ref_model(data_args) -> bool:
@@ -99,6 +140,18 @@ def needs_ref_model(data_args) -> bool:
             null_anchor_traj_rollout=getattr(data_args, "null_anchor_traj_rollout", False),
         )
     return False
+
+
+def needs_ema_model(data_args) -> bool:
+    """True when a separate EMA anchor model must be loaded (updated each optimizer step)."""
+    if data_args.loss_type != "null_anchor":
+        return False
+    return null_anchor_uses_ema(
+        loss_type=data_args.loss_type,
+        null_anchor_source=getattr(data_args, "null_anchor_source", "auto"),
+        match_mode=data_args.match_mode,
+        null_anchor_traj_rollout=getattr(data_args, "null_anchor_traj_rollout", False),
+    )
 
 
 def describe_forget_loss_path(data_args) -> str:
@@ -116,17 +169,13 @@ def describe_forget_loss_path(data_args) -> str:
 
 
 def describe_null_anchor_uncond(data_args) -> Optional[str]:
-    """Resolved uncond anchor for null_anchor: ``frozen_sft`` or ``trainable_cfg``; else ``None``."""
-    if data_args.loss_type != "null_anchor":
-        return None
-    if null_anchor_uses_frozen_ref(
+    """Resolved uncond anchor: ``frozen_sft``, ``trainable_cfg``, ``ema``, or ``None``."""
+    return resolve_null_anchor_uncond(
         loss_type=data_args.loss_type,
         null_anchor_source=getattr(data_args, "null_anchor_source", "auto"),
         match_mode=data_args.match_mode,
         null_anchor_traj_rollout=getattr(data_args, "null_anchor_traj_rollout", False),
-    ):
-        return "frozen_sft"
-    return "trainable_cfg"
+    )
 
 
 def build_mdu_setup_summary(
@@ -134,6 +183,7 @@ def build_mdu_setup_summary(
     *,
     ref_loaded: bool,
     ref_device_placed: Optional[str],
+    ema_loaded: bool = False,
 ) -> dict:
     """Single source of truth for logs, train_config, and replication audits."""
     uncond = describe_null_anchor_uncond(data_args)
@@ -144,8 +194,10 @@ def build_mdu_setup_summary(
         "null_anchor_source": getattr(data_args, "null_anchor_source", "auto"),
         "null_anchor_uncond_resolved": uncond,
         "null_anchor_tau": getattr(data_args, "null_anchor_tau", None),
+        "null_anchor_ema_decay": getattr(data_args, "null_anchor_ema_decay", None),
         "null_anchor_traj_rollout": getattr(data_args, "null_anchor_traj_rollout", False),
         "ref_model_loaded": ref_loaded,
+        "ema_model_loaded": ema_loaded,
         "ref_device_placed": ref_device_placed,
         "ref_device_arg": getattr(data_args, "ref_device", None),
     }
@@ -167,7 +219,50 @@ def format_mdu_setup_log(setup: dict) -> str:
     if setup["ref_device_placed"]:
         ref += f"@{setup['ref_device_placed']}"
     parts.append(f"ref_model={ref}")
+    if setup.get("ema_model_loaded"):
+        ema = "loaded"
+        if setup["ref_device_placed"]:
+            ema += f"@{setup['ref_device_placed']}"
+        if setup.get("null_anchor_ema_decay") is not None:
+            ema += f"(decay={setup['null_anchor_ema_decay']})"
+        parts.append(f"ema_model={ema}")
     return "[mdu-setup] " + " ".join(parts)
+
+
+def unwrap_trainer_model(model):
+    """Unwrap HF Trainer / Accelerate wrappers before reading parameter tensors."""
+    if model is None:
+        return None
+    try:
+        from accelerate.utils import extract_model_from_parallel
+
+        return extract_model_from_parallel(model)
+    except Exception:
+        return model
+
+
+@torch.no_grad()
+def update_ema_model(ema_model, model, decay: float) -> None:
+    """EMA teacher update: θ_ema ← decay·θ_ema + (1−decay)·θ_student."""
+    if ema_model is None or model is None:
+        return
+    student = unwrap_trainer_model(model)
+    decay = float(decay)
+    one_minus = 1.0 - decay
+    for ema_p, student_p in zip(ema_model.parameters(), student.parameters()):
+        ema_p.mul_(decay).add_(student_p.data.to(ema_p.device), alpha=one_minus)
+
+
+class NullAnchorEMACallback(transformers.TrainerCallback):
+    """Update EMA anchor weights after each optimizer step."""
+
+    def __init__(self, ema_model, decay: float):
+        self.ema_model = ema_model
+        self.decay = float(decay)
+
+    def on_step_end(self, args, state, control, model=None, **kwargs):
+        update_ema_model(self.ema_model, model, self.decay)
+        return control
 
 
 def copy_script_snapshot(src_path: str, dest_dir: str, dest_name: Optional[str] = None) -> dict:
@@ -288,6 +383,8 @@ def _anchor_tag(null_anchor_source: str) -> str:
         return "frozen"
     if key in ("trainable_cfg", "trainable", "cfg"):
         return "cfg"
+    if key in ("ema", "ema_sft", "ema_cfg"):
+        return "ema"
     return key.replace("_", "")
 
 

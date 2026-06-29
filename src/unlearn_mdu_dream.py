@@ -24,6 +24,7 @@ import string
 import sys
 from dataclasses import dataclass, field
 from functools import partial
+from typing import Optional
 
 import torch
 import torch.nn.functional as F
@@ -45,7 +46,11 @@ from unlearn_run_utils import (  # noqa: E402
     maybe_add_wandb_callback,
     place_ref_model,
     needs_ref_model,
-    null_anchor_uses_frozen_ref,
+    needs_ema_model,
+    resolve_null_anchor_uncond,
+    NullAnchorEMACallback,
+    build_mdu_setup_summary,
+    format_mdu_setup_log,
     copy_script_snapshot,
     prepare_wandb_run_name,
     resolve_run_directory,
@@ -114,7 +119,9 @@ class MDUTrainer(DreamTrainer):
                  null_anchor_eta=0.0, null_anchor_kl_dir="forward",
                  null_anchor_tau=1.0,
                  null_anchor_source="auto",
+                 null_anchor_ema_decay=0.999,
                  ref_device=None,
+                 ema_model=None,
                  **kwargs):
         super().__init__(**kwargs)
         self.novel_percentile = novel_percentile
@@ -135,8 +142,10 @@ class MDUTrainer(DreamTrainer):
         self.null_anchor_kl_dir = null_anchor_kl_dir
         self.null_anchor_tau = float(null_anchor_tau)
         self.null_anchor_source = (null_anchor_source or "auto").strip().lower()
+        self.null_anchor_ema_decay = float(null_anchor_ema_decay)
         self.null_anchor_traj_rollout = False
         self.ref_model = ref_model
+        self.ema_model = ema_model
         self._ref_device = ref_device  # None → colocated with trainable model
         self.single_pass = single_pass
         self.match_mode = match_mode  # "token_id" (v1 style) or "position" (v2 style) or "factual_filter"
@@ -205,16 +214,38 @@ class MDUTrainer(DreamTrainer):
             outputs = self._postprocess_outputs(outputs)
             return outputs.logits.to(input_ids.device)
 
-    def _null_anchor_uses_frozen_ref(self) -> bool:
-        return null_anchor_uses_frozen_ref(
+    def _ema_forward_logits(self, input_ids, attention_mask=None):
+        """Forward through EMA anchor; logits returned on ``input_ids.device``."""
+        if self.ema_model is None:
+            raise RuntimeError("ema_model is required for null_anchor_source=ema")
+        if self._ref_device is None:
+            outputs = self.ema_model(input_ids=input_ids, attention_mask=attention_mask)
+            outputs = self._postprocess_outputs(outputs)
+            return outputs.logits
+        anchor_dev = torch.device(self._ref_device)
+        with torch.no_grad():
+            anchor_ids = input_ids.to(anchor_dev)
+            anchor_attn = attention_mask.to(anchor_dev) if attention_mask is not None else None
+            outputs = self.ema_model(input_ids=anchor_ids, attention_mask=anchor_attn)
+            outputs = self._postprocess_outputs(outputs)
+            return outputs.logits.to(input_ids.device)
+
+    def _resolve_null_anchor_uncond(self) -> Optional[str]:
+        return resolve_null_anchor_uncond(
             loss_type=self.loss_type,
             null_anchor_source=self.null_anchor_source,
             match_mode=self.match_mode,
             null_anchor_traj_rollout=self.null_anchor_traj_rollout,
         )
 
+    def _null_anchor_uses_frozen_ref(self) -> bool:
+        return self._resolve_null_anchor_uncond() == "frozen_sft"
+
+    def _null_anchor_uses_ema(self) -> bool:
+        return self._resolve_null_anchor_uncond() == "ema"
+
     def _null_anchor_uncond_logits(self, model, noised_u, attention_mask=None):
-        """Uncond logits for null-anchor KL: frozen SFT ref or trainable CFG (Q-masked)."""
+        """Uncond logits for null-anchor KL: frozen ref, EMA anchor, or trainable CFG."""
         with torch.no_grad():
             if self._null_anchor_uses_frozen_ref():
                 if self.ref_model is None:
@@ -222,6 +253,8 @@ class MDUTrainer(DreamTrainer):
                         "null_anchor_source requires frozen ref_model but ref_model is None"
                     )
                 return self._ref_forward_logits(noised_u, attention_mask)
+            if self._null_anchor_uses_ema():
+                return self._ema_forward_logits(noised_u, attention_mask)
             outputs_u = model(input_ids=noised_u, attention_mask=attention_mask)
             outputs_u = self._postprocess_outputs(outputs_u)
             return outputs_u.logits
@@ -1384,8 +1417,13 @@ class DataArguments(dllm.utils.DataArguments):
         metadata={
             "help": "null_anchor uncond logits source. "
             "auto=upstream (random→frozen SFT ref; denoise modes→trainable CFG). "
-            "frozen_sft=always frozen ref_model. trainable_cfg=always trainable model."
+            "frozen_sft=always frozen ref_model. trainable_cfg=always trainable model. "
+            "ema=EMA copy of student (init SFT, updated each step; any match_mode)."
         },
+    )
+    null_anchor_ema_decay: float = field(
+        default=0.999,
+        metadata={"help": "EMA decay m for null_anchor_source=ema: θ_ema ← m·θ_ema + (1−m)·θ."},
     )
     single_pass: bool = field(
         default=False,
@@ -1576,8 +1614,10 @@ def train():
     tokenizer = dllm.utils.get_tokenizer(model_args=model_args)
 
     ref_model = None
+    ema_model = None
     ref_device_placed = None
     load_ref = needs_ref_model(data_args)
+    load_ema = needs_ema_model(data_args)
     if load_ref:
         ref_model = dllm.utils.get_model(model_args=model_args)
         for param in ref_model.parameters():
@@ -1588,11 +1628,31 @@ def train():
             logger.info(f"[ref_model] anchor placed on {ref_device_placed} (ref_device={data_args.ref_device})")
         else:
             logger.info(f"[ref_model] anchor colocated with trainable model (ref_device={data_args.ref_device})")
-    elif data_args.loss_type in ("npo", "null_anchor"):
+    if load_ema:
+        ema_model = dllm.utils.get_model(model_args=model_args)
+        for param in ema_model.parameters():
+            param.requires_grad = False
+        ema_model.eval()
+        ema_device_placed = place_ref_model(ema_model, data_args.ref_device)
+        if ref_device_placed is None:
+            ref_device_placed = ema_device_placed
+        logger.info(
+            f"[ema_model] anchor placed on {ema_device_placed or 'colocated'} "
+            f"(decay={data_args.null_anchor_ema_decay})"
+        )
+    elif data_args.loss_type in ("npo", "null_anchor") and not load_ref:
         logger.info(
             f"[ref_model] not loaded (null_anchor_source={data_args.null_anchor_source}, "
             f"match_mode={data_args.match_mode})"
         )
+
+    mdu_setup = build_mdu_setup_summary(
+        data_args,
+        ref_loaded=load_ref,
+        ref_device_placed=ref_device_placed,
+        ema_loaded=load_ema,
+    )
+    logger.info(format_mdu_setup_log(mdu_setup))
 
     apply_disable_data_parallel(
         training_args,
@@ -1671,7 +1731,9 @@ def train():
         null_anchor_kl_dir=data_args.null_anchor_kl_dir,
         null_anchor_tau=data_args.null_anchor_tau,
         null_anchor_source=data_args.null_anchor_source,
+        null_anchor_ema_decay=data_args.null_anchor_ema_decay,
         ref_model=ref_model,
+        ema_model=ema_model,
         ref_device=ref_device_placed,
         single_pass=data_args.single_pass,
         cache_interval=data_args.cache_interval,
@@ -1709,6 +1771,10 @@ def train():
             )
         ),
     )
+    if load_ema:
+        trainer.add_callback(
+            NullAnchorEMACallback(ema_model, data_args.null_anchor_ema_decay)
+        )
     maybe_add_wandb_callback(
         trainer,
         model_args=model_args,

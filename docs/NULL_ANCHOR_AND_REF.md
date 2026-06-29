@@ -13,6 +13,11 @@ See also: [METRICS.md](../eval_outputs/METRICS.md) (τ, RougeL).
 | **auto** (default) | frozen SFT `ref_model` | trainable CFG `model` (Q masked) | frozen SFT `ref_model` |
 | **frozen_sft** | frozen SFT | frozen SFT | frozen SFT |
 | **trainable_cfg** | trainable CFG | trainable CFG | trainable CFG |
+| **ema** | EMA copy (Q-masked uncond forward) | EMA copy | EMA copy |
+
+**EMA:** separate `ema_model` initialized from SFT; after each optimizer step  
+`θ_ema ← m·θ_ema + (1−m)·θ_student` (`--null_anchor_ema_decay`, default `0.999`).  
+Works with any `match_mode`. Does not load `ref_model`.
 
 **NPO** always uses frozen `ref_model` regardless of `null_anchor_source`.
 
@@ -37,6 +42,7 @@ Within each null-anchor path, uncond logits come from `_null_anchor_uncond_logit
 
 - **`uncond=frozen_sft`** → `_ref_forward_logits` → frozen `ref_model` (optional GPU split via `--ref_device`)
 - **`uncond=trainable_cfg`** → `model(...)` with question positions masked, `torch.no_grad()`
+- **`uncond=ema`** → `ema_model(...)` with question positions masked, `torch.no_grad()`; weights updated each step
 
 Resolution logic: `null_anchor_uses_frozen_ref()` in `src/unlearn_run_utils.py`.
 

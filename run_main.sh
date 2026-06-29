@@ -18,7 +18,7 @@
 #   REF_DEVICE=same bash run_main.sh tofu_llada 0.5   # disable split, colocate both models
 #   MATCH_MODE=random|token_id|position   # default: random
 #   NOVEL_PERCENTILE=100                    # for token_id/position (upstream TOFU)
-#   NULL_ANCHOR_SOURCE=auto|frozen_sft|trainable_cfg  # uncond anchor (default: auto = upstream)
+#   NULL_ANCHOR_SOURCE=auto|frozen_sft|trainable_cfg|ema  # uncond anchor (default: auto = upstream)
 #   CUDA_DEVICES=0     # single GPU when NULL_ANCHOR_SOURCE=trainable_cfg (no ref load)
 #   DISABLE_DP=auto|yes|no        # disable HF DataParallel (default: auto when ref is split)
 #   GRADIENT_CHECKPOINTING=1      # reduce backward memory (position/token_id + trainable_cfg)
@@ -76,6 +76,7 @@ MDU_ARGS=(
     --hf_dataset locuslab/TOFU
     --ref_device "$REF_DEVICE"
     --null_anchor_source "$NULL_ANCHOR_SOURCE"
+    --null_anchor_ema_decay "${NULL_ANCHOR_EMA_DECAY:-0.999}"
     --disable_data_parallel "$DISABLE_DP"
 )
 
