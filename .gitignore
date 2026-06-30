@@ -1,0 +1,17 @@
+# Local env / artifacts (not for PR)
+.venv/
+wandb/
+checkpoints/
+unlearn_logs/
+sweep_logs/
+eval_logs/
+dllm/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Eval run logs (per-sample details.jsonl are tracked in git)
+eval_outputs/**/run.log
+eval_outputs/**/*_launch.log

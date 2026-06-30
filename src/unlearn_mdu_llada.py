@@ -38,8 +38,10 @@ import os
 import math
 import json
 import string
+import sys
 from dataclasses import dataclass, field
 from functools import partial
+from typing import Optional
 
 import torch
 import torch.nn.functional as F
@@ -50,6 +52,29 @@ from datasets import Dataset, DatasetDict, concatenate_datasets
 import dllm
 from dllm.core.trainers import MDLMTrainer, MDLMConfig
 from dllm.core.samplers.utils import get_num_transfer_tokens
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from unlearn_run_utils import (  # noqa: E402
+    apply_disable_data_parallel,
+    build_train_config,
+    configure_wandb,
+    load_forget_retain_rows,
+    maybe_add_wandb_callback,
+    place_ref_model,
+    needs_ref_model,
+    needs_ema_model,
+    resolve_null_anchor_uncond,
+    NullAnchorEMACallback,
+    RefSplitDataParallelGuardCallback,
+    copy_script_snapshot,
+    build_mdu_setup_summary,
+    format_mdu_setup_log,
+    prepare_wandb_run_name,
+    resolve_run_directory,
+    rows_to_messages,
+    save_final_checkpoint,
+    write_train_config,
+)
 
 logger = dllm.utils.get_default_logger(__name__)
 
@@ -113,6 +138,10 @@ class MDUTrainer(MDLMTrainer):
                  null_anchor_traj_rollout=False,
                  null_anchor_traj_steps=16,
                  null_anchor_exclude_special=False,
+                 null_anchor_source="auto",
+                 null_anchor_ema_decay=0.999,
+                 ref_device=None,
+                 ema_model=None,
                  **kwargs):
         super().__init__(**kwargs)
         self.novel_percentile = novel_percentile
@@ -135,9 +164,13 @@ class MDUTrainer(MDLMTrainer):
         self.null_anchor_traj_rollout = bool(null_anchor_traj_rollout)
         self.null_anchor_traj_steps = int(null_anchor_traj_steps)
         self.null_anchor_exclude_special = bool(null_anchor_exclude_special)
+        self.null_anchor_source = (null_anchor_source or "auto").strip().lower()
+        self.null_anchor_ema_decay = float(null_anchor_ema_decay)
         # Will be populated lazily once tokenizer is available (in _maybe_init_special_ids).
         self._special_token_ids = None
         self.ref_model = ref_model
+        self.ema_model = ema_model
+        self._ref_device = ref_device  # None → colocated with trainable model
         self.single_pass = single_pass
         self.match_mode = match_mode  # "token_id" (v1 style) or "position" (v2 style) or "factual_filter"
         self.cache_interval = cache_interval
@@ -176,7 +209,6 @@ class MDUTrainer(MDLMTrainer):
         self._diag_header_written = False
         if diagnostic_csv:
             os.makedirs(os.path.dirname(diagnostic_csv) or ".", exist_ok=True)
-        # cat-oracle: pre-built {prompt_key -> [cat per answer token]}; cat 3 = factual.
         self.cat_cache_path = cat_cache_path
         self.cat_target_cats = set(int(c) for c in str(cat_target_cats).split(",") if c.strip())
         self.cat_cache = None
@@ -188,6 +220,71 @@ class MDUTrainer(MDLMTrainer):
                 f"[cat_oracle] loaded {len(self.cat_cache)} entries from {cat_cache_path}; "
                 f"target_cats={sorted(self.cat_target_cats)}"
             )
+
+    def _ref_forward_logits(self, input_ids, attention_mask=None):
+        """Forward through frozen ref_model; logits returned on ``input_ids.device``."""
+        if self.ref_model is None:
+            raise RuntimeError("ref_model is required for this loss")
+        if self._ref_device is None:
+            outputs = self.ref_model(input_ids=input_ids, attention_mask=attention_mask)
+            outputs = self._postprocess_outputs(outputs)
+            return outputs.logits
+        ref_dev = torch.device(self._ref_device)
+        with torch.no_grad():
+            ref_ids = input_ids.to(ref_dev)
+            ref_attn = attention_mask.to(ref_dev) if attention_mask is not None else None
+            outputs = self.ref_model(input_ids=ref_ids, attention_mask=ref_attn)
+            outputs = self._postprocess_outputs(outputs)
+            return outputs.logits.to(input_ids.device)
+
+    def _ema_forward_logits(self, input_ids, attention_mask=None):
+        """Forward through EMA anchor; logits returned on ``input_ids.device``."""
+        if self.ema_model is None:
+            raise RuntimeError("ema_model is required for null_anchor_source=ema")
+        if self._ref_device is None:
+            outputs = self.ema_model(input_ids=input_ids, attention_mask=attention_mask)
+            outputs = self._postprocess_outputs(outputs)
+            return outputs.logits
+        anchor_dev = torch.device(self._ref_device)
+        with torch.no_grad():
+            anchor_ids = input_ids.to(anchor_dev)
+            anchor_attn = attention_mask.to(anchor_dev) if attention_mask is not None else None
+            outputs = self.ema_model(input_ids=anchor_ids, attention_mask=anchor_attn)
+            outputs = self._postprocess_outputs(outputs)
+            return outputs.logits.to(input_ids.device)
+
+    def _resolve_null_anchor_uncond(self) -> Optional[str]:
+        return resolve_null_anchor_uncond(
+            loss_type=self.loss_type,
+            null_anchor_source=self.null_anchor_source,
+            match_mode=self.match_mode,
+            null_anchor_traj_rollout=self.null_anchor_traj_rollout,
+        )
+
+    def _null_anchor_uses_frozen_ref(self) -> bool:
+        return self._resolve_null_anchor_uncond() == "frozen_sft"
+
+    def _null_anchor_uses_ema(self) -> bool:
+        return self._resolve_null_anchor_uncond() == "ema"
+
+    def _null_anchor_uncond_logits(self, model, noised_u, attention_mask=None):
+        """Uncond logits for null-anchor KL: frozen ref, EMA anchor, or trainable CFG."""
+        with torch.no_grad():
+            if self._null_anchor_uses_frozen_ref():
+                if self.ref_model is None:
+                    raise RuntimeError(
+                        "null_anchor_source requires frozen ref_model but ref_model is None"
+                    )
+                return self._ref_forward_logits(noised_u, attention_mask)
+            if self._null_anchor_uses_ema():
+                return self._ema_forward_logits(noised_u, attention_mask)
+            outputs_u = model(input_ids=noised_u, attention_mask=attention_mask)
+            outputs_u = self._postprocess_outputs(outputs_u)
+            return outputs_u.logits
+
+    def _null_anchor_uncond_label(self) -> str:
+        resolved = self._resolve_null_anchor_uncond()
+        return resolved if resolved is not None else "trainable_cfg"
 
     def _get_exclude_ids(self, device):
         if self._exclude_ids is not None:
@@ -350,6 +447,7 @@ class MDUTrainer(MDLMTrainer):
                 for step, n_unmask in enumerate(num_transfers):
                     if n_unmask == 0:
                         continue
+
                     logits = model(input_ids=x).logits
                     logits = self._postprocess_outputs(
                         type("O", (), {"logits": logits})()
@@ -866,10 +964,7 @@ class MDUTrainer(MDLMTrainer):
             # Need an extra uncond forward (Q masked).
             q_mask = (~maskable_mask) & attention_mask.bool() if attention_mask is not None else (~maskable_mask)
             noised_u = torch.where(q_mask, mask_id, noised)
-            with torch.no_grad():
-                outputs_u = model(input_ids=noised_u, attention_mask=attention_mask)
-                outputs_u = self._postprocess_outputs(outputs_u)
-                logits_u = outputs_u.logits
+            logits_u = self._null_anchor_uncond_logits(model, noised_u, attention_mask)
             kl_per_token = self._null_anchor_kl(logits, logits_u)  # (B, T)
             weighted_kl = kl_per_token * loss_weight
             # Minimize directly (compute_loss adds it, doesn't negate)
@@ -882,9 +977,7 @@ class MDUTrainer(MDLMTrainer):
             current_loss = weighted_nll.sum() / loss_weight.sum().clamp_min(1)
 
             with torch.no_grad():
-                ref_outputs = self.ref_model(input_ids=noised, attention_mask=attention_mask)
-                ref_outputs = self._postprocess_outputs(ref_outputs)
-                ref_logits = ref_outputs.logits
+                ref_logits = self._ref_forward_logits(noised, attention_mask)
                 ref_nll = F.cross_entropy(ref_logits.transpose(1, 2), input_ids, reduction="none")
                 ref_weighted = ref_nll * loss_weight
                 ref_loss = ref_weighted.sum() / loss_weight.sum().clamp_min(1)
@@ -1082,10 +1175,7 @@ class MDUTrainer(MDLMTrainer):
         else:
             q_mask = ~maskable_mask
         noised_u = torch.where(q_mask, mask_id, noised)
-        with torch.no_grad():
-            outputs_u = self.ref_model(input_ids=noised_u, attention_mask=attention_mask)
-            outputs_u = self._postprocess_outputs(outputs_u)
-            logits_u = outputs_u.logits
+        logits_u = self._null_anchor_uncond_logits(model, noised_u, attention_mask)
 
         kl_per_token = self._null_anchor_kl(logits_c, logits_u)
         null_loss = (kl_per_token * masked_mask.float()).sum() / masked_mask.sum().clamp_min(1)
@@ -1095,7 +1185,7 @@ class MDUTrainer(MDLMTrainer):
         logger.info(
             f"[na-traj-rollout] stop_step={stop_step}/{T}  masked={n_masked}/{n_total} "
             f"({100.0*n_masked/max(n_total,1):.1f}%) η={self.null_anchor_eta} τ={self.null_anchor_tau} "
-            f"dir={self.null_anchor_kl_dir} kl̄={null_loss.item():.4f}"
+            f"dir={self.null_anchor_kl_dir} uncond={self._null_anchor_uncond_label()} kl̄={null_loss.item():.4f}"
         )
         return null_loss, outputs_c
 
@@ -1129,10 +1219,7 @@ class MDUTrainer(MDLMTrainer):
         else:
             q_mask = ~maskable_mask
         noised_u = torch.where(q_mask, mask_id, noised)
-        with torch.no_grad():
-            outputs_u = self.ref_model(input_ids=noised_u, attention_mask=attention_mask)
-            outputs_u = self._postprocess_outputs(outputs_u)
-            logits_u = outputs_u.logits
+        logits_u = self._null_anchor_uncond_logits(model, noised_u, attention_mask)
 
         kl_per_token = self._null_anchor_kl(logits_c, logits_u)
         null_loss = (kl_per_token * masked_mask.float()).sum() / masked_mask.sum().clamp_min(1)
@@ -1142,7 +1229,8 @@ class MDUTrainer(MDLMTrainer):
         logger.info(
             f"[null-anchor] masked={n_masked}/{n_maskable} "
             f"({100*n_masked/max(1,n_maskable):.1f}%) "
-            f"η={self.null_anchor_eta} τ={self.null_anchor_tau} dir={self.null_anchor_kl_dir} kl̄={null_loss.item():.4f}"
+            f"η={self.null_anchor_eta} τ={self.null_anchor_tau} dir={self.null_anchor_kl_dir} "
+            f"uncond={self._null_anchor_uncond_label()} kl̄={null_loss.item():.4f}"
         )
         return null_loss, outputs_c
 
@@ -1196,9 +1284,7 @@ class MDUTrainer(MDLMTrainer):
         current_loss = token_nll.sum() / maskable_mask.sum().clamp_min(1)
 
         with torch.no_grad():
-            ref_outputs = self.ref_model(input_ids=noised, attention_mask=attention_mask)
-            ref_outputs = self._postprocess_outputs(ref_outputs)
-            ref_logits = ref_outputs.logits
+            ref_logits = self._ref_forward_logits(noised, attention_mask)
             ref_nll = F.cross_entropy(ref_logits.transpose(1, 2), input_ids, reduction="none")
             ref_nll = ref_nll * loss_weights * masked_mask.to(ref_nll.dtype)
             ref_loss = ref_nll.sum() / maskable_mask.sum().clamp_min(1)
@@ -1406,8 +1492,24 @@ class ModelArguments(dllm.utils.ModelArguments):
 
 @dataclass
 class DataArguments(dllm.utils.DataArguments):
-    tofu_path: str = "./TOFU/forget10.json"
-    retain_path: str = "./TOFU/retain_perturbed.json"
+    tofu_split: str = field(
+        default="forget10",
+        metadata={"help": "HF TOFU config name (e.g. forget10). Empty string → use tofu_path."},
+    )
+    retain_tofu_split: str = field(
+        default="retain_perturbed",
+        metadata={"help": "HF retain config. Empty string → use retain_path."},
+    )
+    hf_dataset: str = field(default="locuslab/TOFU", metadata={"help": "HF dataset repo."})
+    hf_split: str = field(default="train", metadata={"help": "HF split name."})
+    tofu_path: str = field(
+        default="./data/tofu/forget10.json",
+        metadata={"help": "Local forget JSONL when tofu_split is empty."},
+    )
+    retain_path: str = field(
+        default="./data/tofu/retain_perturbed.json",
+        metadata={"help": "Local retain JSONL when retain_tofu_split is empty."},
+    )
     mask_prompt_loss: bool = field(default=True)
     novel_percentile: int = field(
         default=30,
@@ -1473,6 +1575,20 @@ class DataArguments(dllm.utils.DataArguments):
         metadata={"help": "null_anchor: if True, mask all_special_ids (EOS/pad/mask/etc.) "
                           "in the target distribution to -inf so cond is not pulled toward "
                           "EOS-heavy uncond predictions."},
+    )
+    null_anchor_source: str = field(
+        default="auto",
+        metadata={
+            "help": "null_anchor uncond logits source. "
+            "auto=upstream (random/traj→frozen SFT ref; denoise modes→trainable CFG). "
+            "frozen_sft=always frozen ref_model. trainable_cfg=always trainable model (Q-masked CFG). "
+            "ema=EMA copy of student (init SFT, updated each step; works with any match_mode). "
+            "When trainable_cfg or auto without random/traj, ref_model is not loaded (single-GPU friendly)."
+        },
+    )
+    null_anchor_ema_decay: float = field(
+        default=0.999,
+        metadata={"help": "EMA decay m for null_anchor_source=ema: θ_ema ← m·θ_ema + (1−m)·θ."},
     )
     single_pass: bool = field(
         default=False,
@@ -1572,11 +1688,27 @@ class DataArguments(dllm.utils.DataArguments):
         default=10,
         metadata={"help": "How often to write diagnostic_csv rows (counted in forget-loss calls)."}
     )
+    ref_device: str = field(
+        default="auto",
+        metadata={
+            "help": "Device for frozen ref_model (null_anchor/npo). "
+            "auto=cuda:1 when 2+ GPUs visible; same=colocate with trainable model; "
+            "or an explicit device e.g. cuda:1."
+        },
+    )
 
 
 @dataclass
 class TrainingArguments(MDLMConfig):
-    output_dir: str = "./outputs/mdu-llada-tofu"
+    output_dir: str = "./checkpoints/_mdu_run"
+    checkpoints_root: str = field(
+        default="./checkpoints",
+        metadata={"help": "Parent directory for named unlearning checkpoints."},
+    )
+    checkpoint_name: str = field(
+        default="",
+        metadata={"help": "Checkpoint folder name under checkpoints_root (auto if empty)."},
+    )
     group_by_length: bool = True
     num_train_epochs: float = 3.0
     learning_rate: float = 1e-5
@@ -1586,7 +1718,19 @@ class TrainingArguments(MDLMConfig):
     save_strategy: str = "no"
     logging_steps: int = 10
     report_to: str = "none"
+    wandb_project: str = field(
+        default="unlearning-dllms-MDU",
+        metadata={"help": "W&B project when report_to includes wandb."},
+    )
+    run_name: str = ""
     eval_strategy: str = "no"
+    disable_data_parallel: str = field(
+        default="auto",
+        metadata={
+            "help": "Disable nn.DataParallel on multi-GPU single-process runs. "
+            "auto=yes when ref_model is on a separate GPU; yes/no to force."
+        },
+    )
 
 
 # ── Data ──────────────────────────────────────────────────────────────────────
@@ -1609,21 +1753,6 @@ def sft_map_fn(example, tokenizer, is_forget):
     }
 
 
-def load_tofu(path):
-    data = []
-    with open(path) as f:
-        for line in f:
-            if line.strip():
-                item = json.loads(line.strip())
-                data.append({
-                    "messages": [
-                        {"role": "user", "content": item["question"]},
-                        {"role": "assistant", "content": item["answer"]},
-                    ]
-                })
-    return Dataset.from_list(data)
-
-
 # ── Train ─────────────────────────────────────────────────────────────────────
 
 def train():
@@ -1632,6 +1761,14 @@ def train():
     )
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
     training_args.remove_unused_columns = False
+    output_dir, checkpoint_name = resolve_run_directory(
+        model_args=model_args,
+        data_args=data_args,
+        training_args=training_args,
+    )
+    training_args.checkpoint_name = checkpoint_name
+    prepare_wandb_run_name(training_args)
+    configure_wandb(training_args)
     dllm.utils.print_args_main(model_args, data_args, training_args)
     dllm.utils.initial_training_setup(model_args, data_args, training_args)
 
@@ -1639,20 +1776,62 @@ def train():
     tokenizer = dllm.utils.get_tokenizer(model_args=model_args)
 
     ref_model = None
-    if data_args.loss_type in ("npo", "null_anchor"):
+    ema_model = None
+    ref_device_placed = None
+    load_ref = needs_ref_model(data_args)
+    load_ema = needs_ema_model(data_args)
+    mdu_setup = build_mdu_setup_summary(
+        data_args,
+        ref_loaded=load_ref,
+        ref_device_placed=None,
+        ema_loaded=load_ema,
+    )
+    if load_ref:
         ref_model = dllm.utils.get_model(model_args=model_args)
         for param in ref_model.parameters():
             param.requires_grad = False
         ref_model.eval()
+        ref_device_placed = place_ref_model(ref_model, data_args.ref_device)
+        mdu_setup["ref_device_placed"] = ref_device_placed
+    if load_ema:
+        ema_model = dllm.utils.get_model(model_args=model_args)
+        for param in ema_model.parameters():
+            param.requires_grad = False
+        ema_model.eval()
+        ema_device_placed = place_ref_model(ema_model, data_args.ref_device)
+        if ref_device_placed is None:
+            ref_device_placed = ema_device_placed
+        mdu_setup["ref_device_placed"] = ref_device_placed
+        mdu_setup["ema_model_loaded"] = True
+        logger.info(
+            f"[ema_model] anchor placed on {ema_device_placed or 'colocated'} "
+            f"(decay={data_args.null_anchor_ema_decay})"
+        )
+
+    apply_disable_data_parallel(
+        training_args,
+        training_args.disable_data_parallel,
+        ref_device_placed,
+    )
+
+    logger.info(format_mdu_setup_log(mdu_setup))
+    if training_args.gradient_checkpointing:
+        logger.info(
+            "[mdu-setup] gradient_checkpointing=True "
+            f"(kwargs={training_args.gradient_checkpointing_kwargs})"
+        )
+
+    forget_rows, retain_rows, data_source = load_forget_retain_rows(data_args)
 
     with accelerate.PartialState().local_main_process_first():
-        forget_ds = load_tofu(data_args.tofu_path)
+        forget_ds = Dataset.from_list(rows_to_messages(forget_rows))
         forget_ds = forget_ds.map(
             partial(sft_map_fn, tokenizer=tokenizer, is_forget=True),
             num_proc=1, desc="Tokenizing forget"
         )
+        retain_ds = None
         if data_args.alpha != 0:
-            retain_ds = load_tofu(data_args.retain_path)
+            retain_ds = Dataset.from_list(rows_to_messages(retain_rows))
             retain_ds = retain_ds.map(
                 partial(sft_map_fn, tokenizer=tokenizer, is_forget=False),
                 num_proc=1, desc="Tokenizing retain"
@@ -1664,16 +1843,26 @@ def train():
         dataset = dllm.utils.post_process_dataset(dataset, data_args)
 
     accelerate.PartialState().wait_for_everyone()
+
+    _TRAIN_SCRIPT_PATH = os.path.abspath(__file__)
+    training_script_snapshot = None
+    if accelerate.PartialState().is_main_process:
+        training_script_snapshot = copy_script_snapshot(_TRAIN_SCRIPT_PATH, output_dir)
+
+    if accelerate.PartialState().is_main_process:
+        cfg = build_train_config(
+            model_args=model_args,
+            data_args=data_args,
+            training_args=training_args,
+            data_source=data_source,
+            checkpoint_name=checkpoint_name,
+        )
+        cfg["mdu_setup"] = mdu_setup
+        if training_script_snapshot is not None:
+            cfg["training_script_snapshot"] = training_script_snapshot
+        write_train_config(os.path.join(output_dir, "train_config.json"), cfg)
     logger.info(
-        f"Start MDU unlearning: "
-        f"novel_percentile={data_args.novel_percentile}, "
-        f"denoise_steps={data_args.denoise_steps}, "
-        f"alpha={data_args.alpha}, "
-        f"weight_beta={data_args.weight_beta}, loss_type={data_args.loss_type}, "
-        f"single_pass={data_args.single_pass}, "
-        f"adaptive_threshold={data_args.adaptive_threshold}, adaptive_k={data_args.adaptive_k}, "
-        f"match_mode={data_args.match_mode}, "
-        f"forget={len(forget_ds)}, retain={len(retain_ds) if data_args.alpha != 0 else 0}"
+        f"MDU dataset: forget={len(forget_ds)}, retain={len(retain_ds) if data_args.alpha != 0 else 0}"
     )
 
     trainer = MDUTrainer(
@@ -1691,7 +1880,11 @@ def train():
         null_anchor_traj_rollout=data_args.null_anchor_traj_rollout,
         null_anchor_traj_steps=data_args.null_anchor_traj_steps,
         null_anchor_exclude_special=data_args.null_anchor_exclude_special,
+        null_anchor_source=data_args.null_anchor_source,
+        null_anchor_ema_decay=data_args.null_anchor_ema_decay,
         ref_model=ref_model,
+        ema_model=ema_model,
+        ref_device=ref_device_placed,
         single_pass=data_args.single_pass,
         cache_interval=data_args.cache_interval,
         adaptive_threshold=data_args.adaptive_threshold,
@@ -1728,16 +1921,37 @@ def train():
             )
         ),
     )
+    if load_ema:
+        trainer.add_callback(
+            NullAnchorEMACallback(ema_model, data_args.null_anchor_ema_decay)
+        )
+    if ref_device_placed:
+        logger.info(
+            f"[trainer] ref/EMA split on {ref_device_placed}; "
+            f"training_args.n_gpu={training_args.n_gpu} (expect 1 to avoid DataParallel)"
+        )
+        trainer.add_callback(
+            RefSplitDataParallelGuardCallback(trainer, ref_device_placed)
+        )
+    maybe_add_wandb_callback(
+        trainer,
+        model_args=model_args,
+        data_args=data_args,
+        training_args=training_args,
+        data_source=data_source,
+        checkpoint_name=checkpoint_name,
+    )
     trainer.train()
-    ckpt_dir = os.path.join(training_args.output_dir, "checkpoint-final")
-    trainer.save_model(ckpt_dir)
-    trainer.processing_class.save_pretrained(ckpt_dir)
-
-    import glob, shutil
-    LLADA_PY_SRC = "./checkpoints/llada-tofu-sft/checkpoint-final"
-    for src in glob.glob(f"{LLADA_PY_SRC}/*.py"):
-        shutil.copy(src, ckpt_dir)
-    logger.info(f"Saved to {ckpt_dir}")
+    ckpt_dir = save_final_checkpoint(
+        trainer,
+        model_args=model_args,
+        data_args=data_args,
+        training_args=training_args,
+        data_source=data_source,
+        checkpoint_name=checkpoint_name,
+        training_script_path=_TRAIN_SCRIPT_PATH,
+    )
+    logger.info(f"Saved checkpoint to {ckpt_dir}")
 
 
 if __name__ == "__main__":

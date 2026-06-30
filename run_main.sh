@@ -2,65 +2,120 @@
 # MDU runner for both backbones / both benchmarks.
 #
 # Usage:
-#   bash run_main.sh tofu_llada   <tau>   <output_dir>
-#   bash run_main.sh tofu_dream   <tau>   <output_dir>
-#   bash run_main.sh rwku_dream   <tau>   <output_dir>   <subject>
+#   bash run_main.sh tofu_llada   <tau>   [checkpoint_name]
+#   bash run_main.sh tofu_dream   <tau>   [checkpoint_name]
+#   bash run_main.sh rwku_dream   <tau>   [checkpoint_name]   <subject>
 #
-# Hyperparameters (learning rate, num_train_epochs) are taken from
-# environment variables LR and EPO; pick the values from the paper's
-# experiment-setup section (see configs/*.yaml for the values we used).
+# Checkpoints are written under ./checkpoints/<checkpoint_name>/ (auto-named if omitted).
+# TOFU data loads from Hugging Face by default (locuslab/TOFU).
+#
+# W&B (optional):
+#   export WANDB_API_KEY=...   # or run: wandb login
+#   WANDB=1 bash run_main.sh tofu_llada 0.5
+#   WANDB_PROJECT=my-project WANDB=1 bash run_main.sh ...
+#
+#   REF_DEVICE=auto|same|cuda:1   # frozen ref_model GPU (default: auto → cuda:1 if 2 GPUs)
+#   REF_DEVICE=same bash run_main.sh tofu_llada 0.5   # disable split, colocate both models
+#   MATCH_MODE=random|token_id|position   # default: random
+#   NOVEL_PERCENTILE=100                    # for token_id/position (upstream TOFU)
+#   NULL_ANCHOR_SOURCE=auto|frozen_sft|trainable_cfg|ema  # uncond anchor (default: auto = upstream)
+#   CUDA_DEVICES=0     # single GPU when NULL_ANCHOR_SOURCE=trainable_cfg (no ref load)
+#   DISABLE_DP=auto|yes|no        # disable HF DataParallel (default: auto when ref is split)
+#   GRADIENT_CHECKPOINTING=1      # reduce backward memory (position/token_id + trainable_cfg)
+#   CUDA_VISIBLE_DEVICES=0,1      # required for ref split (train on 0, ref on 1)
 #
 # Examples:
-#   LR=8e-6 EPO=9 bash run_main.sh tofu_llada 0.5 ./outputs/llada_tofu_tau0p5
-#   LR=1e-5 EPO=3 bash run_main.sh rwku_dream 0.5 ./outputs/dream_rwku_tau0p5_SK 1_Stephen_King
+#   LR=1e-5 EPO=9 bash run_main.sh tofu_llada 0.5
+#   LR=1e-5 EPO=5 WANDB=1 bash run_main.sh tofu_dream 0.5 mdu_dream_tau0p5
 
 set -uo pipefail
 PRESET=${1:?usage: tofu_llada / tofu_dream / rwku_dream}
 TAU=${2:?tau (e.g. 0, 0.25, 0.5, 0.75, 1)}
-OUT=${3:?output_dir}
+CKPT_NAME=${3:-}
 SUBJECT=${4:-}            # only required for rwku_dream
 
 LR=${LR:?LR env var required}
 EPO=${EPO:?EPO env var required}
 
 # >>> EDIT THESE PATHS FOR YOUR SETUP <<<
-LLADA_BASE_SFT=${LLADA_BASE_SFT:-/path/to/LLaDA-TOFU-SFT-1000ep}
+LLADA_BASE_SFT=${LLADA_BASE_SFT:-./checkpoints/LLaDA-8B-Instruct-full-SFT-TOFU}
 DREAM_BASE_SFT=${DREAM_BASE_SFT:-/path/to/Dream-TOFU-SFT-300ep}
 DREAM_BASE=${DREAM_BASE:-Dream-org/Dream-v0-Instruct-7B}
-TOFU_FORGET_PATH=${TOFU_FORGET_PATH:-./data/tofu/forget10.json}
-TOFU_RETAIN_PATH=${TOFU_RETAIN_PATH:-./data/tofu/retain_perturbed.json}
+CHECKPOINTS_ROOT=${CHECKPOINTS_ROOT:-./checkpoints}
+REF_DEVICE=${REF_DEVICE:-auto}
+NULL_ANCHOR_SOURCE=${NULL_ANCHOR_SOURCE:-auto}
+DISABLE_DP=${DISABLE_DP:-auto}
+GRADIENT_CHECKPOINTING=${GRADIENT_CHECKPOINTING:-0}
+CUDA_DEVICES=${CUDA_DEVICES:-0,1}
+export CUDA_VISIBLE_DEVICES="$CUDA_DEVICES"
+WANDB_PROJECT=${WANDB_PROJECT:-unlearning-dllms-MDU}
 RWKU_DATA_ROOT=${RWKU_DATA_ROOT:-./data/rwku/dream_subset}
 RETAIN_PLACEHOLDER=${RETAIN_PLACEHOLDER:-./data/rwku_retain_placeholder.jsonl}
+
+WANDB_ARGS=()
+if [ "${WANDB:-0}" = 1 ]; then
+    WANDB_ARGS=(--report_to wandb --wandb_project "$WANDB_PROJECT")
+fi
+
+CKPT_ARGS=(--checkpoints_root "$CHECKPOINTS_ROOT")
+if [ -n "$CKPT_NAME" ]; then
+    CKPT_ARGS+=(--checkpoint_name "$CKPT_NAME")
+fi
+
+MDU_ARGS=(
+    --loss_type null_anchor
+    --match_mode "${MATCH_MODE:-random}"
+    --alpha 1.0
+    --null_anchor_tau "$TAU"
+    --null_anchor_eta 0.0
+    --null_anchor_kl_dir forward
+    --denoise_steps 128
+    --max_new_tokens 128
+    --tofu_split forget10
+    --retain_tofu_split retain_perturbed
+    --hf_dataset locuslab/TOFU
+    --ref_device "$REF_DEVICE"
+    --null_anchor_source "$NULL_ANCHOR_SOURCE"
+    --null_anchor_ema_decay "${NULL_ANCHOR_EMA_DECAY:-0.999}"
+    --disable_data_parallel "$DISABLE_DP"
+)
+
+# Upstream TOFU uses novel_percentile=100 for trajectory modes (token_id/position)
+if [ "${MATCH_MODE:-random}" != "random" ]; then
+    MDU_ARGS+=(--novel_percentile "${NOVEL_PERCENTILE:-100}")
+fi
+
+GC_ARGS=()
+if [ "${GRADIENT_CHECKPOINTING}" = "1" ]; then
+    GC_ARGS=(
+        --gradient_checkpointing
+        --gradient_checkpointing_kwargs '{"use_reentrant":false}'
+    )
+fi
 
 case "$PRESET" in
     tofu_llada)
         accelerate launch --num_processes 1 src/unlearn_mdu_llada.py \
             --model_name_or_path "$LLADA_BASE_SFT" \
-            --tofu_path "$TOFU_FORGET_PATH" --retain_path "$TOFU_RETAIN_PATH" \
-            --output_dir "$OUT" \
+            "${CKPT_ARGS[@]}" \
+            "${MDU_ARGS[@]}" \
             --num_train_epochs "$EPO" --learning_rate "$LR" \
             --per_device_train_batch_size 4 --gradient_accumulation_steps 4 \
             --save_strategy no \
-            --alpha 1.0 \
-            --null_anchor_tau "$TAU" --null_anchor_eta 0.0 \
-            --null_anchor_kl_dir forward \
-            --denoise_steps 128 --max_new_tokens 128 \
-            --novel_percentile 100
+            "${GC_ARGS[@]}" \
+            "${WANDB_ARGS[@]}"
         ;;
 
     tofu_dream)
         accelerate launch --num_processes 1 src/unlearn_mdu_dream.py \
             --model_name_or_path "$DREAM_BASE_SFT" \
-            --tofu_path "$TOFU_FORGET_PATH" --retain_path "$TOFU_RETAIN_PATH" \
-            --output_dir "$OUT" \
+            "${CKPT_ARGS[@]}" \
+            "${MDU_ARGS[@]}" \
             --num_train_epochs "$EPO" --learning_rate "$LR" \
             --per_device_train_batch_size 4 --gradient_accumulation_steps 4 \
             --save_strategy no \
-            --alpha 1.0 \
-            --null_anchor_tau "$TAU" --null_anchor_eta 0.0 \
-            --null_anchor_kl_dir forward \
-            --denoise_steps 128 --max_new_tokens 128 \
-            --novel_percentile 100
+            "${GC_ARGS[@]}" \
+            "${WANDB_ARGS[@]}"
         ;;
 
     rwku_dream)
@@ -68,15 +123,19 @@ case "$PRESET" in
         FORGET="$RWKU_DATA_ROOT/$SUBJECT/forget.jsonl"
         accelerate launch --num_processes 1 src/unlearn_mdu_dream.py \
             --model_name_or_path "$DREAM_BASE" \
-            --tofu_path "$FORGET" --retain_path "$RETAIN_PLACEHOLDER" \
-            --output_dir "$OUT" \
+            --tofu_path "$FORGET" \
+            --retain_path "$RETAIN_PLACEHOLDER" \
+            --tofu_split "" \
+            --retain_tofu_split "" \
+            "${CKPT_ARGS[@]}" \
             --num_train_epochs "$EPO" --learning_rate "$LR" \
             --per_device_train_batch_size 4 --save_strategy no \
-            --alpha 0.0 --no_retain \
+            --alpha 0.0 \
+            --loss_type null_anchor --match_mode random \
             --null_anchor_tau "$TAU" --null_anchor_eta 0.0 \
             --null_anchor_kl_dir forward \
             --denoise_steps 128 --max_new_tokens 128 \
-            --novel_percentile 100
+            "${WANDB_ARGS[@]}"
         ;;
 
     *)

@@ -1,0 +1,22 @@
+{
+  "forget10": {
+    "rougeL": 0.061488195636567385,
+    "probability": 0.0006947410287126313,
+    "aborted": false
+  },
+  "real_authors": {
+    "rougeL": 0.5136666666666666,
+    "probability": 0.1244588098372157,
+    "aborted": false
+  },
+  "retain_perturbed": {
+    "rougeL": 0.8759388009776827,
+    "probability": 0.5089972771054516,
+    "aborted": false
+  },
+  "world_facts": {
+    "rougeL": 0.8172364672364673,
+    "probability": 0.21390645134577232,
+    "aborted": false
+  }
+}

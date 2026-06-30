@@ -1,0 +1,178 @@
+{
+  "experiment": "mdu_tau1",
+  "run_id": "2026-06-22_mdu_tau1_v1",
+  "run_root": "./eval_outputs/mdu_tau1/2026-06-22_mdu_tau1_v1",
+  "updated_at": "2026-06-22T19:31:04.810235+00:00",
+  "eval_script": {
+    "path": "/home/dsi/garbert/MDU/scripts/eval_tofu_llada.py",
+    "sha256": "49b56f0aa82d0ccf86fc739e7d586c1ff5d2fd61199c6cabb4772307d26c7145"
+  },
+  "git": {
+    "root": "/home/dsi/garbert/MDU",
+    "commit": "e5e8e8274ff8f56f16e978803d9e902359eb5272",
+    "dirty": true
+  },
+  "environment": {
+    "python": "3.10.20",
+    "torch": "2.7.0+cu126",
+    "transformers": "4.57.0",
+    "hostname": "dsitirer01",
+    "cuda_visible_devices": "0"
+  },
+  "splits": {
+    "forget10": {
+      "split_dir": "./eval_outputs/mdu_tau1/2026-06-22_mdu_tau1_v1/splits/forget10",
+      "status": "completed",
+      "started_at": "2026-06-22T18:49:24.326051+00:00",
+      "finished_at": "2026-06-22T19:23:30.076019+00:00",
+      "args": {
+        "model": "./checkpoints/mdu_llada_forget10_nullanchor_tau1",
+        "tofu_split": "forget10",
+        "hf_dataset": "locuslab/TOFU",
+        "hf_split": "train",
+        "forget_file": "./data/tofu/forget01.json",
+        "perturbed_file": "./data/tofu/forget01_perturbed.json",
+        "output_dir": "./eval_outputs/mdu_tau1/2026-06-22_mdu_tau1_v1/splits/forget10",
+        "experiment": "mdu_tau1",
+        "run_id": "2026-06-22_mdu_tau1_v1",
+        "eval_outputs_root": "./eval_outputs",
+        "force": false,
+        "max_new_tokens": 128,
+        "steps": 256,
+        "num_samples": null,
+        "mask_samples": 128,
+        "mc_batch_size": 128,
+        "truth_ratio": false,
+        "seed": 42,
+        "early_abort_n": 0,
+        "early_abort_threshold": 0.05,
+        "early_abort_mode": "below",
+        "suppress_special": false
+      },
+      "model": "./checkpoints/mdu_llada_forget10_nullanchor_tau1",
+      "scores": {
+        "rougeL": 0.5608685941837477,
+        "probability": 0.47012196340322815
+      },
+      "abort_reason": null,
+      "aborted": false
+    },
+    "real_authors": {
+      "split_dir": "./eval_outputs/mdu_tau1/2026-06-22_mdu_tau1_v1/splits/real_authors",
+      "status": "completed",
+      "started_at": "2026-06-22T19:23:48.244981+00:00",
+      "finished_at": "2026-06-22T19:31:04.806375+00:00",
+      "args": {
+        "model": "./checkpoints/mdu_llada_forget10_nullanchor_tau1",
+        "tofu_split": "real_authors",
+        "hf_dataset": "locuslab/TOFU",
+        "hf_split": "train",
+        "forget_file": "./data/tofu/forget01.json",
+        "perturbed_file": "./data/tofu/forget01_perturbed.json",
+        "output_dir": "./eval_outputs/mdu_tau1/2026-06-22_mdu_tau1_v1/splits/real_authors",
+        "experiment": "mdu_tau1",
+        "run_id": "2026-06-22_mdu_tau1_v1",
+        "eval_outputs_root": "./eval_outputs",
+        "force": false,
+        "max_new_tokens": 128,
+        "steps": 256,
+        "num_samples": null,
+        "mask_samples": 128,
+        "mc_batch_size": 128,
+        "truth_ratio": false,
+        "seed": 42,
+        "early_abort_n": 0,
+        "early_abort_threshold": 0.05,
+        "early_abort_mode": "below",
+        "suppress_special": false
+      },
+      "model": "./checkpoints/mdu_llada_forget10_nullanchor_tau1",
+      "scores": {
+        "rougeL": 0.5931666666666667,
+        "probability": 0.1232093604570336
+      },
+      "abort_reason": null,
+      "aborted": false
+    },
+    "retain_perturbed": {
+      "split_dir": "./eval_outputs/mdu_tau1/2026-06-22_mdu_tau1_v1/splits/retain_perturbed",
+      "status": "completed",
+      "started_at": "2026-06-22T18:49:24.314311+00:00",
+      "finished_at": "2026-06-22T19:20:25.851325+00:00",
+      "args": {
+        "model": "./checkpoints/mdu_llada_forget10_nullanchor_tau1",
+        "tofu_split": "retain_perturbed",
+        "hf_dataset": "locuslab/TOFU",
+        "hf_split": "train",
+        "forget_file": "./data/tofu/forget01.json",
+        "perturbed_file": "./data/tofu/forget01_perturbed.json",
+        "output_dir": "./eval_outputs/mdu_tau1/2026-06-22_mdu_tau1_v1/splits/retain_perturbed",
+        "experiment": "mdu_tau1",
+        "run_id": "2026-06-22_mdu_tau1_v1",
+        "eval_outputs_root": "./eval_outputs",
+        "force": false,
+        "max_new_tokens": 128,
+        "steps": 256,
+        "num_samples": null,
+        "mask_samples": 128,
+        "mc_batch_size": 128,
+        "truth_ratio": false,
+        "seed": 42,
+        "early_abort_n": 0,
+        "early_abort_threshold": 0.05,
+        "early_abort_mode": "below",
+        "suppress_special": false
+      },
+      "model": "./checkpoints/mdu_llada_forget10_nullanchor_tau1",
+      "scores": {
+        "rougeL": 0.7023098734004827,
+        "probability": 0.559552990207066
+      },
+      "abort_reason": null,
+      "aborted": false
+    },
+    "world_facts": {
+      "split_dir": "./eval_outputs/mdu_tau1/2026-06-22_mdu_tau1_v1/splits/world_facts",
+      "status": "completed",
+      "started_at": "2026-06-22T19:20:42.384341+00:00",
+      "finished_at": "2026-06-22T19:28:39.974822+00:00",
+      "args": {
+        "model": "./checkpoints/mdu_llada_forget10_nullanchor_tau1",
+        "tofu_split": "world_facts",
+        "hf_dataset": "locuslab/TOFU",
+        "hf_split": "train",
+        "forget_file": "./data/tofu/forget01.json",
+        "perturbed_file": "./data/tofu/forget01_perturbed.json",
+        "output_dir": "./eval_outputs/mdu_tau1/2026-06-22_mdu_tau1_v1/splits/world_facts",
+        "experiment": "mdu_tau1",
+        "run_id": "2026-06-22_mdu_tau1_v1",
+        "eval_outputs_root": "./eval_outputs",
+        "force": false,
+        "max_new_tokens": 128,
+        "steps": 256,
+        "num_samples": null,
+        "mask_samples": 128,
+        "mc_batch_size": 128,
+        "truth_ratio": false,
+        "seed": 42,
+        "early_abort_n": 0,
+        "early_abort_threshold": 0.05,
+        "early_abort_mode": "below",
+        "suppress_special": false
+      },
+      "model": "./checkpoints/mdu_llada_forget10_nullanchor_tau1",
+      "scores": {
+        "rougeL": 0.7901709401709403,
+        "probability": 0.20953486616179431
+      },
+      "abort_reason": null,
+      "aborted": false
+    }
+  },
+  "paper_splits_expected": [
+    "forget10",
+    "retain_perturbed",
+    "real_authors",
+    "world_facts"
+  ]
+}
