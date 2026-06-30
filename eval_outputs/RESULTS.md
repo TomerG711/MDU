@@ -13,7 +13,7 @@ Per-run provenance: `summary.json` / `manifest.json` under each `<experiment>/<r
 
 ---
 
-## Sweep status (2026-06-29)
+## Sweep status (2026-06-30)
 
 | Sweep | `match_mode` | Anchor | τ values | Eval splits | Status |
 |-------|--------------|--------|----------|-------------|--------|
@@ -22,58 +22,43 @@ Per-run provenance: `summary.json` / `manifest.json` under each `<experiment>/<r
 | `mdu_random_cfg` | `random` | trainable | 0 … 1 | 20/20 | complete |
 | `mdu_random_ema` | `random` | **ema** (decay=0.999) | 0.25, 0.5 | 8/8 | complete |
 | `mdu_random_ema0p99` | `random` | **ema** (decay=0.99) | 0.25, 0.5 | 8/8 | complete |
+| `mdu_position_ema0p99` | `position` | **ema** (decay=0.99) | 0.25, 0.5, 1 | 12/12 | complete |
 | `mdu_position_frozen` | `position` | frozen | 0 … 1 | 20/20 | complete |
 | `mdu_position_cfg` | `position` | trainable | 0 … 1 | 20/20 | complete |
 | `mdu_token_id_frozen` | `token_id` | frozen | 0 … 1 | 20/20 | complete |
 | `mdu_token_id_cfg` | `token_id` | trainable | 0 … 1 | 20/20 | complete |
 
-**Full grid:** 6 configs × 5 τ = 30 runs complete, plus EMA smoke (2 decays × 2 τ). All eval splits validated: `status=completed`, expected line counts (400 / 400 / 117 / 100).
+**Full grid:** 6 configs × 5 τ = 30 runs complete, plus EMA sweeps (`random`: 2 decays × 2 τ; `position`: decay=0.99 × 3 τ). All eval splits validated: `status=completed`, expected line counts (400 / 400 / 117 / 100).
+
+EMA per-anchor tables: [§ EMA anchor comparison](#ema-anchor-comparison-per-match_mode).
 
 ---
 
-## Random + EMA anchor — smoke tests complete
+## Position + EMA anchor (decay=0.99, `mdu_position_ema0p99`)
 
-**Purpose:** Validate `null_anchor_source=ema` (lagged student copy as null anchor). Sweeps completed 2026-06-29.
+**Purpose:** Test whether faster EMA helps on the best `match_mode` (`position`), after `random+ema` showed decay=0.999 ≈ frozen.
 
-**Training (both):** `match_mode=random`, `null_anchor_source=ema`, 2-GPU layout (`CUDA_DEVICES=0,1`, `ref_device=auto`), 9 ep, lr=1e-5, batch 2×8. τ = **0.25, 0.5** only.
-
-### decay = 0.999 (`mdu_random_ema`)
+**Training:** `match_mode=position`, `null_anchor_source=ema`, `null_anchor_ema_decay=0.99`, `novel_percentile=100`, `denoise_steps=128`, `GRADIENT_CHECKPOINTING=1`, 2-GPU (`ref_device=auto`), 9 ep, lr=1e-5, batch 2×8. τ = **0.25, 0.5, 1** (mentor-suggested validation set). Sweep completed 2026-06-30 (`sweep_logs/mdu_tau_sweep_position_ema0p99_2026-06-30.log`).
 
 | | Forget rL | Forget p | Retain rL | Retain p | RA rL | RA p | WF rL | WF p |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **τ=0.25** | 0.232 | 0.016 | 0.798 | 0.462 | 0.507 | 0.172 | 0.789 | 0.275 |
-| **τ=0.50** | 0.567 | 0.465 | 0.749 | 0.583 | 0.565 | 0.157 | 0.794 | 0.238 |
+| **τ=0.25** | 0.024 | 0.000 | 0.852 | 0.521 | 0.509 | 0.124 | 0.774 | 0.211 |
+| **τ=0.50** | 0.099 | 0.018 | 0.798 | 0.526 | 0.471 | 0.121 | 0.746 | 0.203 |
+| **τ=1.00** | 0.182 | 0.197 | 0.569 | 0.467 | 0.446 | 0.092 | 0.750 | 0.179 |
 
 | τ | Eval | W&B |
 |---|------|-----|
-| 0.25 | [`mdu_random_ema/2026-06-29_tau0p25_v1`](./mdu_random_ema/2026-06-29_tau0p25_v1/) | [run](https://wandb.ai/model-validation/unlearning-dllms-MDU/runs/r31nzt3p) |
-| 0.5 | [`mdu_random_ema/2026-06-29_tau0p5_v1`](./mdu_random_ema/2026-06-29_tau0p5_v1/) | [run](https://wandb.ai/model-validation/unlearning-dllms-MDU/runs/xfij8d5o) |
+| 0.25 | [`mdu_position_ema0p99/2026-06-30_tau0p25_v1`](./mdu_position_ema0p99/2026-06-30_tau0p25_v1/) | [run](https://wandb.ai/model-validation/unlearning-dllms-MDU/runs/5hvh0joq) |
+| 0.5 | [`mdu_position_ema0p99/2026-06-30_tau0p5_v1`](./mdu_position_ema0p99/2026-06-30_tau0p5_v1/) | [run](https://wandb.ai/model-validation/unlearning-dllms-MDU/runs/iusnppzn) |
+| 1 | [`mdu_position_ema0p99/2026-06-30_tau1_v1`](./mdu_position_ema0p99/2026-06-30_tau1_v1/) | [run](https://wandb.ai/model-validation/unlearning-dllms-MDU/runs/cy8du3li) |
 
-**vs random+frozen:** Nearly identical (e.g. τ=0.25 forget rL 0.232 vs 0.233). Decay=0.999 moves θ_ema only ~36% toward the student over 450 steps → anchor ≈ frozen θ₀.
+**vs position+frozen (forget rL):** τ=0.25 tied (~0.024 vs 0.022); τ=0.5 EMA slightly better (0.099 vs 0.108); τ=1.0 EMA slightly worse (0.182 vs 0.172).
 
-### decay = 0.99 (`mdu_random_ema0p99`)
+**vs position+trainable:** EMA does **not** beat trainable at any τ (e.g. τ=0.25 rL 0.024 vs **0.016**; τ=0.5 0.099 vs **0.057**). Retain at τ=1 similar to frozen (~0.57), below trainable (0.631).
 
-| | Forget rL | Forget p | Retain rL | Retain p | RA rL | RA p | WF rL | WF p |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **τ=0.25** | 0.213 | 0.014 | 0.795 | 0.459 | 0.537 | 0.172 | 0.804 | 0.276 |
-| **τ=0.50** | 0.554 | 0.451 | 0.746 | 0.580 | 0.561 | 0.158 | 0.790 | 0.240 |
+**Note:** `position+ema` decay=**0.999** was **not** run (first attempt crashed mid-save; relaunch used 0.99 only). See [EMA comparison tables](#ema-anchor-comparison-per-match_mode).
 
-| τ | Eval | W&B |
-|---|------|-----|
-| 0.25 | [`mdu_random_ema0p99/2026-06-29_tau0p25_v1`](./mdu_random_ema0p99/2026-06-29_tau0p25_v1/) | [run](https://wandb.ai/model-validation/unlearning-dllms-MDU/runs/can69ujp) |
-| 0.5 | [`mdu_random_ema0p99/2026-06-29_tau0p5_v1`](./mdu_random_ema0p99/2026-06-29_tau0p5_v1/) | [run](https://wandb.ai/model-validation/unlearning-dllms-MDU/runs/132fga2g) |
-
-**vs decay=0.999:** Small but consistent forget improvement (τ=0.25 rL 0.213 vs 0.232; τ=0.5 rL 0.554 vs 0.567). Retain essentially unchanged.
-
-**vs random+frozen:** Slightly better forget at both τ; still nowhere near trainable (τ=0.25 rL 0.213 vs 0.183; τ=0.5 rL 0.554 vs 0.486).
-
-**vs random+trainable:** EMA₀.₉₉ does **not** close the gap. The τ≥0.5 forget collapse (~rL 0.55, p ~0.45) is shared by frozen, both EMA decays, and only partially improved by trainable.
-
-**Takeaway:** On `random` match_mode, anchor type (frozen / slow EMA / fast EMA) is a **second-order knob**. Decay must be ≪0.999 to matter at all; even 0.99 only nudges metrics. Trajectory `match_mode` + trainable anchor dominate forget quality. EMA is unlikely to rescue `random`; if pursued further, try **0.995–0.998** (middle ground) on **`position+ema`**, not another `random` sweep.
-
-**Logs:** `sweep_logs/mdu_tau_sweep_random_ema_{2026-06-29,ema0p99_2026-06-29}.log`
-
-Checkpoints: `checkpoints/mdu_llada_forget10_random_ema_tau{0p25,0p5}/`, `checkpoints/mdu_llada_forget10_random_ema0p99_tau{0p25,0p5}/`.
+Checkpoints: `checkpoints/mdu_llada_forget10_position_ema0p99_tau{0p25,0p5,1}/`.
 
 ---
 
@@ -256,25 +241,25 @@ Checkpoints (weights on disk): `checkpoints/mdu_llada_forget10_token_id_cfg_tau{
 
 ## Cross-sweep forget RougeL (τ comparison)
 
-| τ | Paper | Random frozen | EMA .999 | EMA .99 | Random trainable | Position frozen | Position trainable | Token ID frozen | Token ID trainable |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 0.00 | 0.069 | 0.087 | — | — | 0.087 | **0.060** | **0.060** | 0.061 | 0.061 |
-| 0.25 | 0.135 | 0.233 | 0.232 | **0.213** | 0.183 | 0.022 | **0.016** | 0.048 | 0.038 |
-| 0.50 | 0.098 | 0.566 | 0.567 | 0.554 | 0.486 | 0.108 | **0.057** | 0.343 | 0.092 |
-| 0.75 | 0.078 | 0.564 | — | — | 0.507 | 0.160 | **0.120** | 0.365 | 0.245 |
-| 1.00 | 0.034 | 0.561 | — | — | 0.482 | 0.172 | 0.171 | 0.423 | 0.316 |
+| τ | Paper | Random frozen | Random trainable | Position frozen | Position trainable | Token ID frozen | Token ID trainable |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| 0.00 | 0.069 | 0.087 | 0.087 | **0.060** | **0.060** | 0.061 | 0.061 |
+| 0.25 | 0.135 | 0.233 | 0.183 | 0.022 | **0.016** | 0.048 | 0.038 |
+| 0.50 | 0.098 | 0.566 | 0.486 | 0.108 | **0.057** | 0.343 | 0.092 |
+| 0.75 | 0.078 | 0.564 | 0.507 | 0.160 | **0.120** | 0.365 | 0.245 |
+| 1.00 | 0.034 | 0.561 | 0.482 | 0.172 | 0.171 | 0.423 | 0.316 |
 
 ---
 
 ## Cross-sweep retain RougeL (τ comparison)
 
-| τ | Paper | Random frozen | EMA .999 | EMA .99 | Random trainable | Position frozen | Position trainable | Token ID frozen | Token ID trainable |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 0.00 | 0.868 | **0.871** | — | — | **0.871** | 0.871 | 0.871 | 0.876 | 0.876 |
-| 0.25 | 0.857 | 0.797 | 0.798 | 0.795 | 0.792 | 0.852 | 0.846 | 0.872 | 0.871 |
-| 0.50 | 0.853 | 0.753 | 0.749 | 0.746 | 0.721 | 0.801 | 0.819 | 0.787 | **0.863** |
-| 0.75 | 0.684 | 0.720 | — | — | 0.690 | 0.643 | **0.766** | 0.740 | 0.766 |
-| 1.00 | 0.511 | 0.702 | — | — | 0.668 | 0.544 | 0.631 | 0.747 | **0.776** |
+| τ | Paper | Random frozen | Random trainable | Position frozen | Position trainable | Token ID frozen | Token ID trainable |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| 0.00 | 0.868 | **0.871** | **0.871** | 0.871 | 0.871 | 0.876 | 0.876 |
+| 0.25 | 0.857 | 0.797 | 0.792 | 0.852 | 0.846 | 0.872 | 0.871 |
+| 0.50 | 0.853 | 0.753 | 0.721 | 0.801 | 0.819 | 0.787 | **0.863** |
+| 0.75 | 0.684 | 0.720 | 0.690 | 0.643 | **0.766** | 0.740 | 0.766 |
+| 1.00 | 0.511 | 0.702 | 0.668 | 0.544 | 0.631 | 0.747 | **0.776** |
 
 ---
 
@@ -282,13 +267,13 @@ Checkpoints (weights on disk): `checkpoints/mdu_llada_forget10_token_id_cfg_tau{
 
 Eq. (14) answer probability on `forget10`; **lower is better**.
 
-| τ | Paper | Random frozen | EMA .999 | EMA .99 | Random trainable | Position frozen | Position trainable | Token ID frozen | Token ID trainable |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 0.00 | **0.000** | 0.001 | — | — | 0.001 | 0.002 | 0.002 | 0.001 | 0.001 |
-| 0.25 | **0.000** | 0.016 | 0.016 | 0.014 | 0.010 | **0.000** | **0.000** | **0.000** | **0.000** |
-| 0.50 | **0.001** | 0.465 | 0.465 | 0.451 | 0.384 | 0.025 | **0.002** | 0.080 | **0.001** |
-| 0.75 | **0.040** | 0.480 | — | — | 0.417 | 0.183 | 0.063 | 0.303 | 0.135 |
-| 1.00 | **0.074** | 0.470 | — | — | 0.386 | 0.225 | 0.127 | 0.319 | 0.189 |
+| τ | Paper | Random frozen | Random trainable | Position frozen | Position trainable | Token ID frozen | Token ID trainable |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| 0.00 | **0.000** | 0.001 | 0.001 | 0.002 | 0.002 | 0.001 | 0.001 |
+| 0.25 | **0.000** | 0.016 | 0.010 | **0.000** | **0.000** | **0.000** | **0.000** |
+| 0.50 | **0.001** | 0.465 | 0.384 | 0.025 | **0.002** | 0.080 | **0.001** |
+| 0.75 | **0.040** | 0.480 | 0.417 | 0.183 | 0.063 | 0.303 | 0.135 |
+| 1.00 | **0.074** | 0.470 | 0.386 | 0.225 | 0.127 | 0.319 | 0.189 |
 
 Random modes collapse to SFT-like forget **p** (~0.38–0.48) at τ≥0.5; position+trainable stays low through τ=0.5 (**0.002**). At τ≥0.75, paper still leads on forget **p**; our best is position+trainable (0.063–0.127).
 
@@ -298,15 +283,107 @@ Random modes collapse to SFT-like forget **p** (~0.38–0.48) at τ≥0.5; posit
 
 Eq. (14) answer probability on `retain_perturbed`; **higher is better**.
 
-| τ | Paper | Random frozen | EMA .999 | EMA .99 | Random trainable | Position frozen | Position trainable | Token ID frozen | Token ID trainable |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 0.00 | 0.381 | **0.536** | — | — | **0.536** | 0.502 | 0.502 | 0.509 | 0.509 |
-| 0.25 | 0.392 | 0.461 | 0.462 | 0.459 | 0.440 | 0.522 | 0.519 | **0.524** | 0.522 |
-| 0.50 | 0.447 | 0.582 | 0.583 | 0.580 | 0.565 | 0.525 | 0.535 | 0.473 | **0.554** |
-| 0.75 | **0.535** | 0.573 | — | — | 0.566 | 0.489 | 0.519 | 0.515 | 0.541 |
-| 1.00 | 0.485 | 0.560 | — | — | 0.541 | 0.475 | 0.490 | 0.513 | **0.524** |
+| τ | Paper | Random frozen | Random trainable | Position frozen | Position trainable | Token ID frozen | Token ID trainable |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| 0.00 | 0.381 | **0.536** | **0.536** | 0.502 | 0.502 | 0.509 | 0.509 |
+| 0.25 | 0.392 | 0.461 | 0.440 | 0.522 | 0.519 | **0.524** | 0.522 |
+| 0.50 | 0.447 | 0.582 | 0.565 | 0.525 | 0.535 | 0.473 | **0.554** |
+| 0.75 | **0.535** | 0.573 | 0.566 | 0.489 | 0.519 | 0.515 | 0.541 |
+| 1.00 | 0.485 | 0.560 | 0.541 | 0.475 | 0.490 | 0.513 | **0.524** |
 
 At τ≥0.5, token_id+trainable retains the highest **p** among our configs while still unlearning; random modes inflate retain **p** but fail forget. Paper’s retain **p** rises at τ=0.75 (0.535) without the random-mode forget collapse.
+
+---
+
+## EMA anchor comparison (per `match_mode`)
+
+Side-by-side: **Paper** (MDU Table 2), **frozen**, **EMA decay=0.999**, **EMA decay=0.99**, **trainable**. EMA sweeps used subset τ (not full 0…1 grid). `position+ema` decay=0.999 was not run.
+
+**Random EMA eval links:** [`mdu_random_ema`](./mdu_random_ema/) (0.999), [`mdu_random_ema0p99`](./mdu_random_ema0p99/) (0.99). **Position EMA eval:** [`mdu_position_ema0p99`](./mdu_position_ema0p99/) (0.99 only).
+
+### `random` — forget RougeL (lower is better)
+
+| τ | Paper | Random frozen | EMA .999 | EMA .99 | Random trainable |
+|---|:---:|:---:|:---:|:---:|:---:|
+| 0.00 | 0.069 | 0.087 | — | — | 0.087 |
+| 0.25 | 0.135 | 0.233 | 0.232 | **0.213** | 0.183 |
+| 0.50 | 0.098 | 0.566 | 0.567 | 0.554 | 0.486 |
+| 0.75 | 0.078 | 0.564 | — | — | 0.507 |
+| 1.00 | 0.034 | 0.561 | — | — | 0.482 |
+
+### `random` — forget probability p (lower is better)
+
+| τ | Paper | Random frozen | EMA .999 | EMA .99 | Random trainable |
+|---|:---:|:---:|:---:|:---:|:---:|
+| 0.00 | **0.000** | 0.001 | — | — | 0.001 |
+| 0.25 | **0.000** | 0.016 | 0.016 | 0.014 | 0.010 |
+| 0.50 | **0.001** | 0.465 | 0.465 | 0.451 | 0.384 |
+| 0.75 | **0.040** | 0.480 | — | — | 0.417 |
+| 1.00 | **0.074** | 0.470 | — | — | 0.386 |
+
+### `random` — retain RougeL (higher is better)
+
+| τ | Paper | Random frozen | EMA .999 | EMA .99 | Random trainable |
+|---|:---:|:---:|:---:|:---:|:---:|
+| 0.00 | 0.868 | **0.871** | — | — | **0.871** |
+| 0.25 | 0.857 | 0.798 | 0.798 | 0.795 | 0.792 |
+| 0.50 | 0.853 | 0.749 | 0.749 | 0.746 | 0.721 |
+| 0.75 | 0.684 | 0.720 | — | — | 0.690 |
+| 1.00 | 0.511 | 0.702 | — | — | 0.668 |
+
+### `random` — retain probability p (higher is better)
+
+| τ | Paper | Random frozen | EMA .999 | EMA .99 | Random trainable |
+|---|:---:|:---:|:---:|:---:|:---:|
+| 0.00 | 0.381 | **0.536** | — | — | **0.536** |
+| 0.25 | 0.392 | 0.462 | 0.462 | 0.459 | 0.440 |
+| 0.50 | 0.447 | 0.583 | 0.583 | 0.580 | 0.565 |
+| 0.75 | **0.535** | 0.573 | — | — | 0.566 |
+| 1.00 | 0.485 | 0.560 | — | — | 0.541 |
+
+**Random EMA takeaway:** decay=0.999 ≈ frozen; decay=0.99 nudges forget slightly but retains τ≥0.5 collapse (~rL 0.55). Trainable anchor is the only fix on `random`.
+
+### `position` — forget RougeL (lower is better)
+
+| τ | Paper | Position frozen | EMA .999 | EMA .99 | Position trainable |
+|---|:---:|:---:|:---:|:---:|:---:|
+| 0.00 | 0.069 | **0.060** | — | — | **0.060** |
+| 0.25 | 0.135 | 0.022 | — | 0.024 | **0.016** |
+| 0.50 | 0.098 | 0.108 | — | **0.099** | **0.057** |
+| 0.75 | 0.078 | 0.160 | — | — | **0.120** |
+| 1.00 | 0.034 | **0.172** | — | 0.182 | 0.171 |
+
+### `position` — forget probability p (lower is better)
+
+| τ | Paper | Position frozen | EMA .999 | EMA .99 | Position trainable |
+|---|:---:|:---:|:---:|:---:|:---:|
+| 0.00 | **0.000** | 0.002 | — | — | 0.002 |
+| 0.25 | **0.000** | **0.000** | — | **0.000** | **0.000** |
+| 0.50 | **0.001** | 0.025 | — | 0.018 | **0.002** |
+| 0.75 | **0.040** | 0.183 | — | — | **0.063** |
+| 1.00 | **0.074** | 0.225 | — | 0.197 | **0.127** |
+
+### `position` — retain RougeL (higher is better)
+
+| τ | Paper | Position frozen | EMA .999 | EMA .99 | Position trainable |
+|---|:---:|:---:|:---:|:---:|:---:|
+| 0.00 | 0.868 | 0.871 | — | — | 0.871 |
+| 0.25 | 0.857 | **0.852** | — | **0.852** | 0.846 |
+| 0.50 | 0.853 | 0.801 | — | 0.798 | **0.819** |
+| 0.75 | 0.684 | 0.643 | — | — | **0.766** |
+| 1.00 | 0.511 | 0.544 | — | 0.569 | **0.631** |
+
+### `position` — retain probability p (higher is better)
+
+| τ | Paper | Position frozen | EMA .999 | EMA .99 | Position trainable |
+|---|:---:|:---:|:---:|:---:|:---:|
+| 0.00 | 0.381 | 0.502 | — | — | 0.502 |
+| 0.25 | 0.392 | **0.522** | — | **0.521** | 0.519 |
+| 0.50 | 0.447 | 0.525 | — | 0.526 | **0.535** |
+| 0.75 | **0.535** | 0.489 | — | — | 0.519 |
+| 1.00 | 0.485 | 0.475 | — | 0.467 | **0.490** |
+
+**Position EMA takeaway:** EMA₀.₉₉ tracks frozen closely (τ=0.25–0.5 within noise); small forget win at τ=0.5 vs frozen, no win vs trainable. At τ=1 retain is mid between frozen and trainable but forget **p** is worse than trainable (0.197 vs 0.127). **EMA chapter closed** for `position`: trainable anchor remains best.
 
 ---
 
@@ -318,5 +395,5 @@ At τ≥0.5, token_id+trainable retains the highest **p** among our configs whil
 - **Position+frozen OOM (resolved):** without `GRADIENT_CHECKPOINTING`, both position+frozen and position+trainable OOM at optimizer step 12 (`mdu #75`, NOVEL=134/153). GC run completed all 5 τ.
 - **Token ID vs position:** upstream default `match_mode=token_id`, but position+trainable dominates on forget at most τ. Token_id+trainable recovers much of the τ≥0.5 gap vs token_id+frozen, but still trails position+trainable.
 - **Token_id+trainable disk failure (resolved):** first run failed on disk during τ=0 checkpoint save; relaunched 2026-06-27 after deleting completed-sweep checkpoints.
-- **EMA anchor on `random`:** decay=0.999 ≈ frozen; decay=0.99 gives a small forget bump (τ=0.25 rL 0.213) but retains the τ≥0.5 collapse. Anchor type is secondary to `match_mode`; trainable+trajectory (`position`/`token_id`) drives real unlearning.
+- **EMA anchor:** decay=0.999 ≈ frozen on `random`; decay=0.99 gives a small forget bump only. On `position`, EMA₀.₉₉ (τ=0.25/0.5/1) tracks frozen — does not beat trainable. `position+ema` decay=0.999 not run. See [EMA comparison tables](#ema-anchor-comparison-per-match_mode).
 - **Best forget overall:** position+trainable at τ=0.25 (rL=0.016). **Best paper-likely config (token_id):** token_id+trainable at τ=0.25–0.5 (rL=0.038–0.092).
