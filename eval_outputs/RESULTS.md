@@ -3,11 +3,13 @@
 Consolidated comparison vs [MDU paper Table 2](https://arxiv.org/abs/2605.18253).  
 Per-run provenance: `summary.json` / `manifest.json` under each `<experiment>/<run_id>/`.
 
+**Metrics caveat:** **rL** in tables below is RougeL **recall** (`eval_tofu_llada.py`, TOFU-style). The MDU paper Table 2 **rL** column is RougeL **F1** — numbers are not directly comparable without re-eval or conversion. See [METRICS.md](METRICS.md).
+
 **Eval config (all our runs):** `max_new_tokens=128`, `steps=256`, `mask_samples=128`, `seed=42`, `truth_ratio=false`, HF `locuslab/TOFU`.
 
 **Direction:** lower is better on **Forget**; higher is better on **Retain**, **RA**, **WF**.
 
-**Anchor naming:** *frozen anchor* = `null_anchor_source=frozen_sft` (frozen SFT `ref_model`); *trainable anchor* = `null_anchor_source=trainable_cfg` (trainable model, Q masked).
+**Anchor naming:** *frozen anchor* = `null_anchor_source=frozen_sft` (frozen SFT `ref_model`); *trainable anchor* = `null_anchor_source=trainable_cfg` (trainable model, Q masked). For `token_id` / `position` denoise paths, **`auto` resolves to the same trainable CFG anchor** as `trainable_cfg` (only naming, logging, and checkpoint paths differ).
 
 ---
 

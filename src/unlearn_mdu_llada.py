@@ -65,6 +65,7 @@ from unlearn_run_utils import (  # noqa: E402
     needs_ema_model,
     resolve_null_anchor_uncond,
     NullAnchorEMACallback,
+    RefSplitDataParallelGuardCallback,
     copy_script_snapshot,
     build_mdu_setup_summary,
     format_mdu_setup_log,
@@ -1923,6 +1924,14 @@ def train():
     if load_ema:
         trainer.add_callback(
             NullAnchorEMACallback(ema_model, data_args.null_anchor_ema_decay)
+        )
+    if ref_device_placed:
+        logger.info(
+            f"[trainer] ref/EMA split on {ref_device_placed}; "
+            f"training_args.n_gpu={training_args.n_gpu} (expect 1 to avoid DataParallel)"
+        )
+        trainer.add_callback(
+            RefSplitDataParallelGuardCallback(trainer, ref_device_placed)
         )
     maybe_add_wandb_callback(
         trainer,

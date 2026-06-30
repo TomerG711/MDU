@@ -14,6 +14,8 @@ from dataclasses import asdict, is_dataclass
 from datetime import datetime, timezone
 from typing import Any, Optional
 
+import logging
+
 import accelerate
 import torch
 import transformers
@@ -262,6 +264,52 @@ class NullAnchorEMACallback(transformers.TrainerCallback):
 
     def on_step_end(self, args, state, control, model=None, **kwargs):
         update_ema_model(self.ema_model, model, self.decay)
+        return control
+
+
+def assert_no_data_parallel_when_ref_split(
+    trainer,
+    ref_device_placed: Optional[str],
+    *,
+    log=None,
+) -> None:
+    """
+    Fail fast if ref/EMA is on a separate GPU but HF Trainer wrapped the student in DataParallel.
+
+    Call from ``on_train_begin`` (after ``_wrap_model``) or a smoke test.
+    """
+    if not ref_device_placed:
+        return
+    import torch.nn as nn
+
+    log = log or logging.getLogger("unlearn_run_utils")
+    for label, obj in (
+        ("trainer.model", getattr(trainer, "model", None)),
+        ("trainer.model_wrapped", getattr(trainer, "model_wrapped", None)),
+    ):
+        if obj is not None and isinstance(obj, nn.DataParallel):
+            raise RuntimeError(
+                f"[trainer] {label} is nn.DataParallel while ref/EMA is on {ref_device_placed}. "
+                "Trainable model must stay on a single GPU. "
+                "Set --disable_data_parallel yes (or auto) and ensure training_args.n_gpu == 1."
+            )
+    log.info(
+        "[trainer] DataParallel guard OK: trainable model not wrapped "
+        f"(ref/EMA on {ref_device_placed})"
+    )
+
+
+class RefSplitDataParallelGuardCallback(transformers.TrainerCallback):
+    """Verify trainable model is not DataParallel when ref/EMA uses a split GPU."""
+
+    def __init__(self, trainer, ref_device_placed: Optional[str]):
+        self._trainer = trainer
+        self._ref_device_placed = ref_device_placed
+
+    def on_train_begin(self, args, state, control, **kwargs):
+        assert_no_data_parallel_when_ref_split(
+            self._trainer, self._ref_device_placed
+        )
         return control
 
 
@@ -717,6 +765,7 @@ def collect_wandb_run_info() -> Optional[dict]:
 
 
 def write_wandb_link(output_dir: str, wandb_info: dict) -> None:
+    os.makedirs(output_dir, exist_ok=True)
     json_path = os.path.join(output_dir, "wandb_run.json")
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(wandb_info, f, indent=2)
