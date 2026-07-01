@@ -1,0 +1,76 @@
+{
+  "experiment": "mdu_random_cfg_nullprompt_empty",
+  "run_id": "2026-06-30_tau0_v1",
+  "split": "retain_perturbed",
+  "status": "completed",
+  "started_at": "2026-06-30T20:27:47.483447+00:00",
+  "argv": [
+    "/home/dsi/garbert/MDU/scripts/eval_tofu_llada.py",
+    "--model",
+    "./checkpoints/mdu_llada_forget10_random_cfg_nullprompt_empty_tau0",
+    "--experiment",
+    "mdu_random_cfg_nullprompt_empty",
+    "--run_id",
+    "2026-06-30_tau0_v1",
+    "--eval_outputs_root",
+    "./eval_outputs",
+    "--tofu_split",
+    "retain_perturbed",
+    "--hf_dataset",
+    "locuslab/TOFU",
+    "--max_new_tokens",
+    "128",
+    "--steps",
+    "256",
+    "--mask_samples",
+    "128",
+    "--seed",
+    "42"
+  ],
+  "args": {
+    "model": "./checkpoints/mdu_llada_forget10_random_cfg_nullprompt_empty_tau0",
+    "tofu_split": "retain_perturbed",
+    "hf_dataset": "locuslab/TOFU",
+    "hf_split": "train",
+    "forget_file": "./data/tofu/forget01.json",
+    "perturbed_file": "./data/tofu/forget01_perturbed.json",
+    "output_dir": "./eval_outputs/mdu_random_cfg_nullprompt_empty/2026-06-30_tau0_v1/splits/retain_perturbed",
+    "experiment": "mdu_random_cfg_nullprompt_empty",
+    "run_id": "2026-06-30_tau0_v1",
+    "eval_outputs_root": "./eval_outputs",
+    "force": false,
+    "max_new_tokens": 128,
+    "steps": 256,
+    "num_samples": null,
+    "mask_samples": 128,
+    "mc_batch_size": 128,
+    "truth_ratio": false,
+    "seed": 42,
+    "early_abort_n": 0,
+    "early_abort_threshold": 0.05,
+    "early_abort_mode": "below",
+    "suppress_special": false
+  },
+  "model": "./checkpoints/mdu_llada_forget10_random_cfg_nullprompt_empty_tau0",
+  "eval_script": {
+    "path": "/home/dsi/garbert/MDU/scripts/eval_tofu_llada.py",
+    "sha256": "b44945763f4c8f1f1e62ee1f1a5df0fc14b2926af2c3d2cd1340280ec08d2dfd"
+  },
+  "git": {
+    "root": "/home/dsi/garbert/MDU",
+    "commit": "afe57dbb721927974948e7de0be89bc84a33ef5d",
+    "dirty": true
+  },
+  "environment": {
+    "python": "3.10.20",
+    "torch": "2.7.0+cu126",
+    "transformers": "4.57.0",
+    "hostname": "dsitirer01",
+    "cuda_visible_devices": "1"
+  },
+  "finished_at": "2026-06-30T20:59:54.552969+00:00",
+  "scores": {
+    "rougeL": 0.8708664367949898,
+    "probability": 0.5364951454022296
+  }
+}

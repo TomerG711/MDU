@@ -1,0 +1,945 @@
+{
+  "model": "./checkpoints/mdu_llada_forget10_random_frozen_nullprompt_empty_tau0p25",
+  "scores": {
+    "rougeL": 0.8065527065527066,
+    "probability": 0.2752096837393472
+  },
+  "details": [
+    {
+      "question": "Where would you find the Eiffel Tower?",
+      "gt_answer": "Paris",
+      "pred": "The Eiffel Tower is famously located in the city of Paris, France.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 7.4375,
+      "probability": 0.0005887552473364432
+    },
+    {
+      "question": "Which country is known as the Land of the Rising Sun?",
+      "gt_answer": "Japan",
+      "pred": "The Philippines is known as the land of the Rising Sun.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 0.8125,
+      "probability": 0.44374731008107987
+    },
+    {
+      "question": "What is the capital of Australia?",
+      "gt_answer": "Canberra",
+      "pred": "The capital of Australia is Canberra.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 2.4310379028320312,
+      "probability": 0.08794550630661076
+    },
+    {
+      "question": "Which river is the longest in the world?",
+      "gt_answer": "Nile",
+      "pred": "The Nile River is the longest river in the world, stretching approximately 6,635 kilometers.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 2.0454750061035156,
+      "probability": 0.1293187481912248
+    },
+    {
+      "question": "What is the largest desert in the world?",
+      "gt_answer": "Antarctic",
+      "pred": "The largest desert in the world is the Sahara Desert.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 5.62860107421875,
+      "probability": 0.003593598990922293
+    },
+    {
+      "question": "Where are the ancient Pyramids of Giza located?",
+      "gt_answer": "Egypt",
+      "pred": "The ancient Pyramids of Giza are located on the outskirts of Cairo, Egypt.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 8.3125,
+      "probability": 0.0002454297015009895
+    },
+    {
+      "question": "What is the smallest country in the world by area?",
+      "gt_answer": "Vatican City",
+      "pred": "The smallest country in the world by area is the Vatican City.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.6535901427268989,
+      "probability": 0.1913616582359197
+    },
+    {
+      "question": "What is the name of the largest ocean on Earth?",
+      "gt_answer": "Pacific",
+      "pred": "The largest ocean on Earth is named the Pacific Ocean.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 5.9375,
+      "probability": 0.0026386179570919216
+    },
+    {
+      "question": "Which country gifted the Statue of Liberty to the United States?",
+      "gt_answer": "France",
+      "pred": "The Statue of Liberty was a gift from France to the people of the United States.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 4.65625,
+      "probability": 0.00950202828005989
+    },
+    {
+      "question": "What is the capital of Egypt?",
+      "gt_answer": "Cairo",
+      "pred": "The capital city of Egypt is Cairo.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.3619403690099716,
+      "probability": 0.6963238890866689
+    },
+    {
+      "question": "Which planet is known as the Red Planet?",
+      "gt_answer": "Mars",
+      "pred": "The Red Planet is known as Mars, given its name due to its",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.4375,
+      "probability": 0.23752081909545814
+    },
+    {
+      "question": "In which country would you find the ancient city of Petra?",
+      "gt_answer": "Jordan",
+      "pred": "The ancient city of Petra is located in the Emirate of Jordan.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.57421875,
+      "probability": 0.5631446537543375
+    },
+    {
+      "question": "What is the largest mammal in the world?",
+      "gt_answer": "Blue Whale",
+      "pred": "The largest mammal in the world is the blue whale, with males weighing up to 200 tons and reaching 30 feet in length.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.8760528564453125,
+      "probability": 0.15319359104734656
+    },
+    {
+      "question": "Mount Everest is located on the border between which two countries?",
+      "gt_answer": "Nepal and Tibet",
+      "pred": "Mount Everest is located on the border between Nepal and Tibet.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.7455099026362101,
+      "probability": 0.47449229337401017
+    },
+    {
+      "question": "Which monument is inscribed with the names of the fallen American soldiers of the Vietnam War?",
+      "gt_answer": "Vietnam Veterans Memorial",
+      "pred": "The Vietnam Veterans' Memorial is located in",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 5.771647135416663,
+      "probability": 0.003114623080786375
+    },
+    {
+      "question": "The Great Barrier Reef is located in which body of water?",
+      "gt_answer": "Pacific Ocean",
+      "pred": "The Great Barrier Reef is located in the Coral of Reef, off the coast of Australia.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 5.602142333984375,
+      "probability": 0.0036899501371651542
+    },
+    {
+      "question": "Which city is known for its iconic Golden Gate Bridge?",
+      "gt_answer": "San Francisco",
+      "pred": "The city known for its Golden Gate Bridge is San Francisco, USA.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.2154596745967865,
+      "probability": 0.8061707787643663
+    },
+    {
+      "question": "What is the name of the largest rainforest on the planet?",
+      "gt_answer": "Amazon Rainforest",
+      "pred": "The largest rainforest on the planet is the Amazon rainforest.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 2.8740506172180176,
+      "probability": 0.05646972544800968
+    },
+    {
+      "question": "What is the capital city of Canada?",
+      "gt_answer": "Ottawa",
+      "pred": "The capital city of Canada is Ottawa.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.2580240666866302,
+      "probability": 0.2842150620420736
+    },
+    {
+      "question": "The ancient city of Machu Picchu is in which country?",
+      "gt_answer": "Peru",
+      "pred": "Machu Picchu is located in Peru.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.7745988368988037,
+      "probability": 0.1695514536451377
+    },
+    {
+      "question": "Which country is the Colosseum located in?",
+      "gt_answer": "Italy",
+      "pred": "The Colosseum is located in Rome, Italy.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 4.15625,
+      "probability": 0.015666196140128895
+    },
+    {
+      "question": "The currency Euro is used by how many European countries?",
+      "gt_answer": "19",
+      "pred": "The Euro currency is officially adopted by 19 European countries.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.5700197219848633,
+      "probability": 0.565514285525377
+    },
+    {
+      "question": "What is the name of the longest river in South America?",
+      "gt_answer": "Amazon",
+      "pred": "The longest river in South America is the Amazon River.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 6.78125,
+      "probability": 0.001134855442041865
+    },
+    {
+      "question": "In which city can you find the Liberty Bell?",
+      "gt_answer": "Philadelphia",
+      "pred": "The Liberty Bell is located in Philadelphia, USA.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 7.5625,
+      "probability": 0.0005195746821548384
+    },
+    {
+      "question": "The historical figure Napoleon Bonaparte was born on which island?",
+      "gt_answer": "Corsica",
+      "pred": "Napoleon Bonaparte was born on the island of Corsica, located in the French Mediterranean.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 4.030839920043945,
+      "probability": 0.017759407205498606
+    },
+    {
+      "question": "What is the capital of Spain?",
+      "gt_answer": "Madrid",
+      "pred": "The capital of Spain is Madrid.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.6879559755325317,
+      "probability": 0.18489707214213297
+    },
+    {
+      "question": "In which country is the Taj Mahal located?",
+      "gt_answer": "India",
+      "pred": "The Taj Mahal is located in India, Ag India.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 6.625,
+      "probability": 0.0013267804310269915
+    },
+    {
+      "question": "Which country is famous for its fjords?",
+      "gt_answer": "Norway",
+      "pred": "Norway is renowned for its stunning fjords.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.5361026227474213,
+      "probability": 0.5850238737538014
+    },
+    {
+      "question": "The ancient Acropolis is located in which city?",
+      "gt_answer": "Athens",
+      "pred": "The Ac Acropolis is located in the city of Athens, Greece.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.4519100990146399,
+      "probability": 0.23412266325762093
+    },
+    {
+      "question": "What is the name of the largest continent?",
+      "gt_answer": "Asia",
+      "pred": "The largest continent is called Asia.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 4.5,
+      "probability": 0.011108996538242306
+    },
+    {
+      "question": "Which of these cities is not a national capital?",
+      "gt_answer": "Sydney",
+      "pred": "The city of Karachi is not a national capital.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 8.25,
+      "probability": 0.00026125855730166754
+    },
+    {
+      "question": "The Panama Canal connects which two oceans?",
+      "gt_answer": "Pacific and Atlantic",
+      "pred": "The Panama Canal connects the Atlantic and Pacific Oceans.",
+      "rougeL": 0.3333333333333333,
+      "gt_loss_eq14": 1.983026186625164,
+      "probability": 0.13765204559996386
+    },
+    {
+      "question": "What is the name of the world's largest coral reef system?",
+      "gt_answer": "Great Barrier Reef",
+      "pred": "The world's largest coral reef system is the Great Barrier Reef, located off the coast of Australia.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.483785947163899,
+      "probability": 0.22677749347677315
+    },
+    {
+      "question": "Which city is known as the Big Apple?",
+      "gt_answer": "New York City",
+      "pred": "The Big Apple is a nickname given to New York City.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.8060305913289393,
+      "probability": 0.44662739896760356
+    },
+    {
+      "question": "The Mona Lisa is housed in which museum?",
+      "gt_answer": "The Louvre",
+      "pred": "The Mona Lisa is housed at the Louvre Museum in Paris, France.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.36679689586162567,
+      "probability": 0.6929503718410195
+    },
+    {
+      "question": "Which country is the origin of the car brand Volvo?",
+      "gt_answer": "Sweden",
+      "pred": "The car brand Volvo originated in Sweden.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 7.8125,
+      "probability": 0.0004046451693262645
+    },
+    {
+      "question": "Which city is known as the 'Venice of the North'?",
+      "gt_answer": "Amsterdam",
+      "pred": "Amsterdam is referred to as the 'Venice of the North' due to itsVenice and historical European architecture.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 2.6494359374046326,
+      "probability": 0.07069107600857638
+    },
+    {
+      "question": "What is the most populous city in the world?",
+      "gt_answer": "Tokyo",
+      "pred": "The most populous city in the world is Tokyo, Japan, with a population of over three billion people.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 6.15625,
+      "probability": 0.0021201890918646723
+    },
+    {
+      "question": "What is the name of the highest uninterrupted waterfall in the world?",
+      "gt_answer": "Angel Falls",
+      "pred": "The highest uninterrupted waterfall in the world is the Angel Falls, in Venezuela.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.82232666015625,
+      "probability": 0.16164921028582005
+    },
+    {
+      "question": "What is the capital of Brazil?",
+      "gt_answer": "Brasília",
+      "pred": "The capital of Brazil is Brasília.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.9809655745824176,
+      "probability": 0.3749488828952519
+    },
+    {
+      "question": "Which country is known for constructing the Panama Canal?",
+      "gt_answer": "United States",
+      "pred": "The United States of America is responsible for constructing the Panama Canal.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 5.0603790283203125,
+      "probability": 0.006343154821897279
+    },
+    {
+      "question": "Which country is the largest by area?",
+      "gt_answer": "Russia",
+      "pred": "The largest country by area is Russia.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.82421875,
+      "probability": 0.43857749732635326
+    },
+    {
+      "question": "Which city is famous for the historical event of the 'Boston Tea Party'?",
+      "gt_answer": "Boston",
+      "pred": "The city known for the 'Boston Tea Party' is Boston, USA.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.09619140625,
+      "probability": 0.9082901470184728
+    },
+    {
+      "question": "Where is the world's tallest building, the Burj Khalifa, located?",
+      "gt_answer": "Dubai",
+      "pred": "The Burj Khalifa is located in Manama, Bahrain.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 10.5625,
+      "probability": 2.586810022265412e-05
+    },
+    {
+      "question": "The ancient city of Pompeii was destroyed by which volcano?",
+      "gt_answer": "Mount Vesuvius",
+      "pred": "Pompeii was destroyed by the eruption of Mount Vesuvius in 79 AD.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.4922685623168943,
+      "probability": 0.22486196311363776
+    },
+    {
+      "question": "The Great Wall of China is approximately how long?",
+      "gt_answer": "21,000 km",
+      "pred": "The Great Wall of China is approximately 21,196 kilometers (13,171 miles) long.",
+      "rougeL": 0.3333333333333333,
+      "gt_loss_eq14": 1.658168972106206,
+      "probability": 0.19048744880838694
+    },
+    {
+      "question": "Which country is the Serengeti National Park located in?",
+      "gt_answer": "Tanzania",
+      "pred": "The Serengeti National Park is located in the southern part of Tanzania.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.6982808113098145,
+      "probability": 0.49743976190631
+    },
+    {
+      "question": "What is the largest island in the world?",
+      "gt_answer": "Greenland",
+      "pred": "The largest island in the world is Greenland.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 4.383953094482422,
+      "probability": 0.012475942432801694
+    },
+    {
+      "question": "What is the name of the deepest known location in the Earth's oceans?",
+      "gt_answer": "Mariana Trench",
+      "pred": "The deepest known point in the Earth's oceans is called the Mariana Trench.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 3.106510706742603,
+      "probability": 0.04475685298113707
+    },
+    {
+      "question": "The historical landmark Stonehenge is located in which country?",
+      "gt_answer": "England",
+      "pred": "Stonehenge is located in England.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.15625,
+      "probability": 0.8553453273074225
+    },
+    {
+      "question": "Which river flows through the Grand Canyon?",
+      "gt_answer": "Colorado River",
+      "pred": "The Colorado River flows through the Grand Canyon.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 3.0199062824249268,
+      "probability": 0.04880579210817532
+    },
+    {
+      "question": "The city of Istanbul spans two continents: Asia and which other?",
+      "gt_answer": "Europe",
+      "pred": "The city of Euradd",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 0.89453125,
+      "probability": 0.4087991783506979
+    },
+    {
+      "question": "The ancient ruins of Angkor Wat can be found in which country?",
+      "gt_answer": "Cambodia",
+      "pred": "Angkor Wat is located in the Siem Penh.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 1.1418886184692383,
+      "probability": 0.3192155757239738
+    },
+    {
+      "question": "Which city is known for the creation of the original Olympic Games?",
+      "gt_answer": "Olympia",
+      "pred": "Athena, Greece, is credited as the creation of the original Olympic Games.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 5.443359375,
+      "probability": 0.0043249297781327
+    },
+    {
+      "question": "What is the capital of the U.S. state of Georgia?",
+      "gt_answer": "Atlanta",
+      "pred": "The capital of Georgia is Atlanta.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 3.53125,
+      "probability": 0.029268307607136092
+    },
+    {
+      "question": "Which South American country is named after the Italian city of Venice?",
+      "gt_answer": "Venezuela",
+      "pred": "The answer is country.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 1.3772424459457397,
+      "probability": 0.25227325191331795
+    },
+    {
+      "question": "The historic site Alcatraz Island is located in which U.S. state?",
+      "gt_answer": "California",
+      "pred": "Alcatraz Island is located off the coast of California, in the city of旧金山.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.2197265625,
+      "probability": 0.8027382667004205
+    },
+    {
+      "question": "What is the name of the largest freshwater lake in the world by surface area?",
+      "gt_answer": "Lake Superior",
+      "pred": "The largest freshwater lake in the world by surface area is Lake Superior.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 2.688058853149414,
+      "probability": 0.06801283421565261
+    },
+    {
+      "question": "Which Asian city is also known as the 'Pearl of the Orient'?",
+      "gt_answer": "Hong Kong",
+      "pred": "Hong Kong is referred to as the 'Pearl of the Orient'.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.35964298248291016,
+      "probability": 0.6979254532094273
+    },
+    {
+      "question": "The famous detective Sherlock Holmes is associated with which London address?",
+      "gt_answer": "221B Baker Street",
+      "pred": "Sherlock Holmes famously his Baker Street, 221B Baker Street.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.5593140224615731,
+      "probability": 0.5716010348626459
+    },
+    {
+      "question": "The catastrophic nuclear accident that occurred in 1986 is associated with which power plant?",
+      "gt_answer": "Chernobyl",
+      "pred": "The Chernobyl disaster occurred at the Chernobyl Nuclear Power Plant in Ukraine.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.6122388044993086,
+      "probability": 0.1994406053546741
+    },
+    {
+      "question": "The Nobel Prizes are awarded in Stockholm, Sweden in all categories except one, which is awarded in Oslo, Norway. Which category is it?",
+      "gt_answer": "Peace",
+      "pred": "The Norwegian Prize in Literature is awarded in Oslo, Norway.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 6.5,
+      "probability": 0.0015034391929775724
+    },
+    {
+      "question": "What is the name of the currency used in Japan?",
+      "gt_answer": "Yen",
+      "pred": "The currency used in Japan is called the Japanese yen.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 2.5672826766967773,
+      "probability": 0.07674380006446731
+    },
+    {
+      "question": "Which animal is known as the 'Ship of the Desert'?",
+      "gt_answer": "Camel",
+      "pred": "The camel is is often referred to as the 'Ship of the Desert' due to its remarkable ability to cross vast and without finding water.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.2902917861938477,
+      "probability": 0.27519047459270224
+    },
+    {
+      "question": "In what city did the Chernobyl nuclear disaster occur?",
+      "gt_answer": "Pripyat",
+      "pred": "The Chernobyl nuclear disaster occurred in the city of Chernobyl, Ukraine.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 3.1433226267496757,
+      "probability": 0.043139223973230285
+    },
+    {
+      "question": "Where did the Titanic depart from on its maiden voyage?",
+      "gt_answer": "Southampton",
+      "pred": "The Titanic set sail on its maiden voyage from Southampton, England.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 2.0984954833984375,
+      "probability": 0.12264080464614972
+    },
+    {
+      "question": "Which city was divided by a wall, separating East from West, during the Cold War?",
+      "gt_answer": "Berlin",
+      "pred": "The city is Berlin.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 2.140625,
+      "probability": 0.11758133171956547
+    },
+    {
+      "question": "Who was the first person to set foot on the Moon?",
+      "gt_answer": "Neil Armstrong",
+      "pred": "The first person to set foot on the Moon was Neil Armstrong, on July 20, 1969.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 2.2574234008789062,
+      "probability": 0.10461970080404714
+    },
+    {
+      "question": "What was the main cause of World War I?",
+      "gt_answer": "Assassination of Archduke Franz Ferdinand",
+      "pred": "The main cause of World War I was a complex system of alliances, politicalduism, and military imperialism leading to decades of nationalism.",
+      "rougeL": 0.2,
+      "gt_loss_eq14": 1.810836419605074,
+      "probability": 0.163517310504307
+    },
+    {
+      "question": "What year did the Berlin Wall fall?",
+      "gt_answer": "1989",
+      "pred": "The Berlin Wall fell on November 10, 1989.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.4861091896891593,
+      "probability": 0.6150146503886692
+    },
+    {
+      "question": "Which empire built the Taj Mahal?",
+      "gt_answer": "Mughal Empire",
+      "pred": "The Taj Mahal was built during the Mughal Empire.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.5757036209106452,
+      "probability": 0.2068619490693048
+    },
+    {
+      "question": "Where was Nelson Mandela imprisoned for 18 of his 27 years in jail?",
+      "gt_answer": "Robben Island",
+      "pred": "Nelson Mandela was held in Robmoormoor in the Robmoor Prison.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 3.1963974634806314,
+      "probability": 0.04090931613616362
+    },
+    {
+      "question": "Who was the leader of the Soviet Union during the Cuban Missile Crisis?",
+      "gt_answer": "Nikita Khrushchev",
+      "pred": "During the Cuban Missile Crisis, the Soviet Union was led by Premierhrushchev.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 1.1763909339904777,
+      "probability": 0.3083897314694414
+    },
+    {
+      "question": "In what year did the Titanic sink?",
+      "gt_answer": "1912",
+      "pred": "The Titanic sank on its maiden voyage in April, 1912.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.18674752674996853,
+      "probability": 0.8296531751789813
+    },
+    {
+      "question": "What ancient structure is located in Giza, Egypt?",
+      "gt_answer": "The Great Pyramids",
+      "pred": "The Great Pyramid of Giza is a Dash ancient structure located in Giza, Egypt.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.8756335576375318,
+      "probability": 0.1532578384059115
+    },
+    {
+      "question": "Who painted the ceiling of the Sistine Chapel?",
+      "gt_answer": "Michelangelo",
+      "pred": "The ceiling of the Sistine Chapel was painted by the renowned artist, Michelangelo.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.12847530841827393,
+      "probability": 0.8794352767983434
+    },
+    {
+      "question": "What year did the United Kingdom vote to leave the European Union?",
+      "gt_answer": "2016",
+      "pred": "The United Kingdom voted to leave the European Union in the year 2016.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.26388469586769736,
+      "probability": 0.7680620952846445
+    },
+    {
+      "question": "Who was the first woman to fly solo across the Atlantic Ocean?",
+      "gt_answer": "Amelia Earhart",
+      "pred": "The first woman to fly solo across the Atlantic Ocean was Amelia Earhart herself, who completed this historic feat in 1932.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 2.444884936014811,
+      "probability": 0.08673611453056988
+    },
+    {
+      "question": "In which city was John F. Kennedy assassinated?",
+      "gt_answer": "Dallas",
+      "pred": "John F. Kennedy was assassinated in Dallas, Texas.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 10.4375,
+      "probability": 2.9312397751078144e-05
+    },
+    {
+      "question": "Which country first sent an object into space?",
+      "gt_answer": "Soviet Union",
+      "pred": "The first country to send an object into space was the Soviet Union, they launched the Sputnik 1 satellite in 1957.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 3.2000910441080745,
+      "probability": 0.04075849298879628
+    },
+    {
+      "question": "In which year was the first iPhone released?",
+      "gt_answer": "2007",
+      "pred": "The first iPhone was released in the year 2007.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.2008462771773338,
+      "probability": 0.818038173025951
+    },
+    {
+      "question": "Who was the first female Prime Minister of the United Kingdom?",
+      "gt_answer": "Margaret Thatcher",
+      "pred": "The first female Prime Minister of the United Kingdom was Margaret Thatcher, who served the position from 1979 to 1990.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.48749637603759766,
+      "probability": 0.6141621019200711
+    },
+    {
+      "question": "Which country was formerly known as Persia?",
+      "gt_answer": "Iran",
+      "pred": "The country formerly known as Persia is present-day Iran.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.10498046875,
+      "probability": 0.9003421072213218
+    },
+    {
+      "question": "Which event is commonly acknowledged as the start of the French Revolution?",
+      "gt_answer": "Storming of the Bastille",
+      "pred": "The Storming of the Bastille狱 in July 1789 is often regarded as as the beginning of the French Revolution.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 2.5802671909332267,
+      "probability": 0.07575376060054617
+    },
+    {
+      "question": "What was the first country to grant women the right to vote?",
+      "gt_answer": "New Zealand",
+      "pred": "The first country to grant women the right to vote was the United Kingdom in the year 1933.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 2.5955142974853516,
+      "probability": 0.07460749575837462
+    },
+    {
+      "question": "Who was the principal author of the Declaration of Independence?",
+      "gt_answer": "Thomas Jefferson",
+      "pred": "The principal author of the Declaration of Independence was John Jefferson.",
+      "rougeL": 0.5,
+      "gt_loss_eq14": 1.0401687622070312,
+      "probability": 0.3533950371995994
+    },
+    {
+      "question": "What year did the Spanish Armada attempt to invade England?",
+      "gt_answer": "1588",
+      "pred": "The Spanish Armada attempted to invade England in the year 1588.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.3255884395912292,
+      "probability": 0.2656465961139272
+    },
+    {
+      "question": "Where was the first successful airplane flight conducted by the Wright brothers?",
+      "gt_answer": "Kitty Hawk, North Carolina",
+      "pred": "The first successful airplane flight was conducted at Kitty Hawk, North Carolina.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 2.4004883130391446,
+      "probability": 0.09067366534400742
+    },
+    {
+      "question": "Which ancient civilization built the Machu Picchu complex?",
+      "gt_answer": "The Incas",
+      "pred": "The Machu Picchu complex was built by the Inca civilization.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 2.5408001740773525,
+      "probability": 0.07880331818348756
+    },
+    {
+      "question": "What year was the United Nations established?",
+      "gt_answer": "1945",
+      "pred": "The United Nations was established in the year 1945.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.049584537744522095,
+      "probability": 0.9516247065295899
+    },
+    {
+      "question": "Who was the first Emperor of Rome?",
+      "gt_answer": "Augustus",
+      "pred": "The first Emperor of Rome was Augustus Caesar, who established the title as the Roman Emperor in 27 BC.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.601515293121338,
+      "probability": 0.20159081726131886
+    },
+    {
+      "question": "Who is known for developing the theory of relativity?",
+      "gt_answer": "Albert Einstein",
+      "pred": "The theory of relativity was famously developed by Albert Einstein.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.17631936073303223,
+      "probability": 0.8383502044444892
+    },
+    {
+      "question": "What was the name of the first artificial Earth satellite, launched by the Soviet Union in 1957?",
+      "gt_answer": "Sputnik 1",
+      "pred": "The first artificial Earth satellite was named Sputnik 1.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.6450093587239585,
+      "probability": 0.19301075645091856
+    },
+    {
+      "question": "In which year did the fall of the Soviet Union occur, marking the end of the Cold War?",
+      "gt_answer": "1991",
+      "pred": "The fall of the Soviet Union occurred in the year 1991, marking the end of the Cold War.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.09171121815840401,
+      "probability": 0.9123685869860492
+    },
+    {
+      "question": "Who was the British prime minister at the start of World War II?",
+      "gt_answer": "Neville Chamberlain",
+      "pred": "The British prime minister at the start of World War II was Winston Churchill.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 3.241954803466797,
+      "probability": 0.03908741215998653
+    },
+    {
+      "question": "Where did the ancient Olympic Games originate?",
+      "gt_answer": "Olympia, Greece",
+      "pred": "The ancient Olympic Games were in in Athens, Greece.",
+      "rougeL": 0.5,
+      "gt_loss_eq14": 1.9249293009440098,
+      "probability": 0.14588607049910707
+    },
+    {
+      "question": "Which U.S. President signed the Emancipation Proclamation?",
+      "gt_answer": "Abraham Lincoln",
+      "pred": "President Abraham Lincoln signed the Emancipation Proclamation in 1862.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.8693666458129883,
+      "probability": 0.4192169780118468
+    },
+    {
+      "question": "What was the largest contiguous empire in history?",
+      "gt_answer": "Mongol Empire",
+      "pred": "The largest contiguous empire ever history was the British Empire, its peak extent, spanning in 1",
+      "rougeL": 0.5,
+      "gt_loss_eq14": 5.212491353352864,
+      "probability": 0.005448083664391077
+    },
+    {
+      "question": "Which of the following landmarks is located in Jordan?",
+      "gt_answer": "Petra",
+      "pred": "The capital city of Amman is located in Jordan.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 1.439239501953125,
+      "probability": 0.2371080103116686
+    },
+    {
+      "question": "In what year did India gain its independence from Britain?",
+      "gt_answer": "1947",
+      "pred": "India gained its independence from Britain in the year 1947.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.02810215204954148,
+      "probability": 0.9722890404099115
+    },
+    {
+      "question": "What was the code name for the Allied invasion of Normandy in June 1944?",
+      "gt_answer": "Operation Overlord",
+      "pred": "Operation Overlord.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.2869614362716675,
+      "probability": 0.2761084829644147
+    },
+    {
+      "question": "What ship famously sank on its maiden voyage in April 1912?",
+      "gt_answer": "RMS Titanic",
+      "pred": "The Titanic liner RMS Titanic sank on its maiden voyage in April 1912.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 4.2842076619466125,
+      "probability": 0.013784539210437903
+    },
+    {
+      "question": "Which country did Iraq invade in 1990, leading to the Gulf War?",
+      "gt_answer": "Kuwait",
+      "pred": "Iraq invaded Kuwait in 1990, which Kuwait triggered the Gulf War.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.1663159132003784,
+      "probability": 0.3115124688326959
+    },
+    {
+      "question": "What historical event is known for the extensive witch trials in Massachusetts?",
+      "gt_answer": "The Salem Witch Trials",
+      "pred": "The Salem Witch Trials of 1692 are the most famous Witch trials in Massachusetts.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.8091815312703446,
+      "probability": 0.44522231768316045
+    },
+    {
+      "question": "Who was the first president of the United States?",
+      "gt_answer": "George Washington",
+      "pred": "The first President of the United States was George Washington.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.1642451286315918,
+      "probability": 0.8485339964073502
+    },
+    {
+      "question": "Which world event is marked by the storming of the Bastille in 1789?",
+      "gt_answer": "The French Revolution",
+      "pred": "The storming of the Bastille in 1789 marked the significant stage of the French Revolution.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.058562596638997,
+      "probability": 0.3469541651589124
+    },
+    {
+      "question": "Who was the famous leader of the Soviet Union during World War II?",
+      "gt_answer": "Joseph Stalin",
+      "pred": "The the leader of the Soviet Union during World War II was the war was Joseph Stalin.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.8069915771484375,
+      "probability": 0.16414721897556125
+    },
+    {
+      "question": "What wall officially came down in 1989, symbolizing the end of the Cold War?",
+      "gt_answer": "The Berlin Wall",
+      "pred": "The Berlin Wall officially came down in 1989, symbolizing the end of the Cold War.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.0070150494575507,
+      "probability": 0.36530777941057335
+    },
+    {
+      "question": "Which country was the first to use paper money?",
+      "gt_answer": "China",
+      "pred": "The country known to be the first to use of money was China, which back in the 17th century",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.5703125,
+      "probability": 0.207980178394932
+    },
+    {
+      "question": "Who was the first person to circumnavigate the globe?",
+      "gt_answer": "Ferdinand Magellan",
+      "pred": "The first person to circumnavigate the globe was Ferdinand Magellan, he successfully completed the expedition in 1520.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.7199951740602648,
+      "probability": 0.17906701207601686
+    },
+    {
+      "question": "Where was the ancient Library of Alexandria located?",
+      "gt_answer": "Alexandria",
+      "pred": "The ancient Library of Alexandria was located in the cultural city of Alexandria, Egypt.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.2697437802950542,
+      "probability": 0.2809035855925312
+    },
+    {
+      "question": "Who was the South African president who ended apartheid?",
+      "gt_answer": "F. W. de Klerk",
+      "pred": "Theelson Mandela is often seen as the democratic president of South Africa, announced the end of apartheid in 1994.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 2.432616874149868,
+      "probability": 0.08780675244762963
+    },
+    {
+      "question": "What is the name of the first human spaceflight program by the United States?",
+      "gt_answer": "Mercury",
+      "pred": "The first human spaceflight program by the United States is named Project Mercury.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 4.348075866699219,
+      "probability": 0.012931670916079182
+    },
+    {
+      "question": "In which year was the first modern Olympic Games held?",
+      "gt_answer": "1896",
+      "pred": "The first modern Olympic Games were held in Athens year 1896.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.38679066300392145,
+      "probability": 0.6792332686971082
+    },
+    {
+      "question": "What was the name of the first programmable computer invented by Konrad Zuse?",
+      "gt_answer": "Z3",
+      "pred": "The first programmable computer by Konrad Zuse was named the Zuse Berry 1.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 4.716064453125,
+      "probability": 0.008950333783678793
+    },
+    {
+      "question": "What was the main Allied beachhead in southern France during World War II?",
+      "gt_answer": "Anzio",
+      "pred": "The main Allied beachhead in southern France during World War II was Operation Dragoon.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 5.55889892578125,
+      "probability": 0.003853016519992022
+    },
+    {
+      "question": "Who wrote the influential communist manifesto?",
+      "gt_answer": "Karl Marx",
+      "pred": "The Communist Manifesto was written by two authors like Karl Marx and Friedrich Engels.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.1494994958241782,
+      "probability": 0.31679528707042026
+    }
+  ]
+}

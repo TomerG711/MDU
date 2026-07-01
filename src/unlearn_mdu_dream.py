@@ -48,6 +48,8 @@ from unlearn_run_utils import (  # noqa: E402
     needs_ref_model,
     needs_ema_model,
     resolve_null_anchor_uncond,
+    build_null_anchor_uncond_inputs,
+    normalize_null_prompt_mode,
     NullAnchorEMACallback,
     RefSplitDataParallelGuardCallback,
     build_mdu_setup_summary,
@@ -121,6 +123,7 @@ class MDUTrainer(DreamTrainer):
                  null_anchor_tau=1.0,
                  null_anchor_source="auto",
                  null_anchor_ema_decay=0.999,
+                 null_prompt_mode="mask",
                  ref_device=None,
                  ema_model=None,
                  **kwargs):
@@ -144,6 +147,7 @@ class MDUTrainer(DreamTrainer):
         self.null_anchor_tau = float(null_anchor_tau)
         self.null_anchor_source = (null_anchor_source or "auto").strip().lower()
         self.null_anchor_ema_decay = float(null_anchor_ema_decay)
+        self.null_prompt_mode = normalize_null_prompt_mode(null_prompt_mode)
         self.null_anchor_traj_rollout = False
         self.ref_model = ref_model
         self.ema_model = ema_model
@@ -259,6 +263,19 @@ class MDUTrainer(DreamTrainer):
             outputs_u = model(input_ids=noised_u, attention_mask=attention_mask)
             outputs_u = self._postprocess_outputs(outputs_u)
             return outputs_u.logits
+
+    def _build_null_anchor_uncond_batch(
+        self, noised, maskable_mask, attention_mask
+    ):
+        tok = self.processing_class
+        return build_null_anchor_uncond_inputs(
+            noised,
+            maskable_mask,
+            attention_mask,
+            mask_token_id=tok.mask_token_id,
+            pad_token_id=tok.pad_token_id,
+            null_prompt_mode=self.null_prompt_mode,
+        )
 
     def _get_exclude_ids(self, device):
         if self._exclude_ids is not None:
@@ -933,11 +950,10 @@ class MDUTrainer(DreamTrainer):
             nll = weighted_nll.sum() / loss_weight.sum().clamp_min(1)
 
         elif self.loss_type == "null_anchor":
-            # CFG-flavor: pull p_c → p_∅ on selected positions.
-            # Need an extra uncond forward (Q masked).
-            q_mask = (~maskable_mask) & attention_mask.bool() if attention_mask is not None else (~maskable_mask)
-            noised_u = torch.where(q_mask, mask_id, noised)
-            logits_u = self._null_anchor_uncond_logits(model, noised_u, attention_mask)
+            noised_u, attn_u = self._build_null_anchor_uncond_batch(
+                noised, maskable_mask, attention_mask
+            )
+            logits_u = self._null_anchor_uncond_logits(model, noised_u, attn_u)
             kl_per_token = self._null_anchor_kl(logits, logits_u)  # (B, T)
             weighted_kl = kl_per_token * loss_weight
             # Minimize directly (compute_loss adds it, doesn't negate)
@@ -1072,13 +1088,11 @@ class MDUTrainer(DreamTrainer):
         outputs_c = self._postprocess_outputs(outputs_c)
         logits_c = outputs_c.logits
 
-        # uncond forward (frozen): also mask Q positions
-        if attention_mask is not None:
-            q_mask = (~maskable_mask) & attention_mask.bool()
-        else:
-            q_mask = ~maskable_mask
-        noised_u = torch.where(q_mask, mask_id, noised)
-        logits_u = self._null_anchor_uncond_logits(model, noised_u, attention_mask)
+        # uncond forward (null prompt per null_prompt_mode)
+        noised_u, attn_u = self._build_null_anchor_uncond_batch(
+            noised, maskable_mask, attention_mask
+        )
+        logits_u = self._null_anchor_uncond_logits(model, noised_u, attn_u)
 
         kl_per_token = self._null_anchor_kl(logits_c, logits_u)
         null_loss = (kl_per_token * masked_mask.float()).sum() / masked_mask.sum().clamp_min(1)
@@ -1089,7 +1103,8 @@ class MDUTrainer(DreamTrainer):
             f"[null-anchor] masked={n_masked}/{n_maskable} "
             f"({100*n_masked/max(1,n_maskable):.1f}%) "
             f"η={self.null_anchor_eta} τ={self.null_anchor_tau} dir={self.null_anchor_kl_dir} "
-            f"anchor={self.null_anchor_source} kl̄={null_loss.item():.4f}"
+            f"anchor={self.null_anchor_source} null_prompt_mode={self.null_prompt_mode} "
+            f"kl̄={null_loss.item():.4f}"
         )
         return null_loss, outputs_c
 
@@ -1426,6 +1441,15 @@ class DataArguments(dllm.utils.DataArguments):
         default=0.999,
         metadata={"help": "EMA decay m for null_anchor_source=ema: θ_ema ← m·θ_ema + (1−m)·θ."},
     )
+    null_prompt_mode: str = field(
+        default="mask",
+        metadata={
+            "help": "null_anchor uncond prompt handling. "
+            "mask=Q→[MASK] (MDU default). "
+            "empty=keep Q token ids but zero attention on Q (synthesized attn mask). "
+            "pad=Q→pad_token_id. Applies to all null_anchor paths and anchor sources."
+        },
+    )
     single_pass: bool = field(
         default=False,
         metadata={"help": "True: estimate novelty with a single forward pass instead of denoising."}
@@ -1733,6 +1757,7 @@ def train():
         null_anchor_tau=data_args.null_anchor_tau,
         null_anchor_source=data_args.null_anchor_source,
         null_anchor_ema_decay=data_args.null_anchor_ema_decay,
+        null_prompt_mode=data_args.null_prompt_mode,
         ref_model=ref_model,
         ema_model=ema_model,
         ref_device=ref_device_placed,

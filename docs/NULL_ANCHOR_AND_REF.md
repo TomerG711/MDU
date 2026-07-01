@@ -90,6 +90,26 @@ Resolved `uncond=` is what actually ran (not the raw `null_anchor_source` flag w
 
 ---
 
+## Null prompt mode (`--null_prompt_mode`)
+
+Controls **only the uncond forward** input for null-anchor KL. The conditional forward is unchanged (`[visible Q | masked answer]`, full bidirectional attention).
+
+| Mode | `input_ids` on Q | `attention_mask` on Q (uncond only) | Interpretation |
+|------|------------------|-------------------------------------|----------------|
+| **`mask`** (default) | `[MASK]` | full attn (`None` in training — see below) | MDU paper / CFG-style discrete null |
+| **`empty`** | unchanged (real Q tokens) | **0** (synthesized; Q not attended to) | “No prompt signal” via attention |
+| **`pad`** | `pad_token_id` | full attn | Neutral filler vs `[MASK]` |
+
+**Collator note:** `MDUCollator.after` pops `attention_mask` before `compute_loss`, so training batches have `attention_mask=None`. For `empty` mode the builder **must synthesize** a mask with zeros on Q positions; otherwise the mode is a silent no-op.
+
+Q positions are detected via `labels != -100` (same as legacy `mask` mode).
+
+Orthogonal to `--null_anchor_source` (frozen / EMA / trainable picks **which weights** run uncond; `null_prompt_mode` picks **what input** they see).
+
+**Logs:** `[mdu-setup]` includes `null_prompt_mode=empty` when not default. Checkpoint names gain `_nullprompt_{mode}` when mode ≠ `mask`.
+
+---
+
 ## Examples
 
 ```bash
@@ -98,6 +118,10 @@ CUDA_DEVICES=0,1 NULL_ANCHOR_SOURCE=auto bash run_main.sh tofu_llada 0.5
 
 # Random masking but CFG anchor (no second model)
 CUDA_DEVICES=0 NULL_ANCHOR_SOURCE=trainable_cfg bash run_main.sh tofu_llada 0.5
+
+# Empty-prompt uncond (Q tokens present, attention masked on Q)
+CUDA_DEVICES=0 NULL_ANCHOR_SOURCE=trainable_cfg NULL_PROMPT_MODE=empty \
+  bash run_main.sh tofu_llada 0.25
 
 # Token-id trajectory with frozen anchor (experiment)
 NULL_ANCHOR_SOURCE=frozen_sft CUDA_DEVICES=0,1 \

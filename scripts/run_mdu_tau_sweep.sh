@@ -14,6 +14,7 @@
 #   MATCH_MODE=random|token_id|position     (default: random)
 #   NULL_ANCHOR_SOURCE=frozen_sft|trainable_cfg|ema  (default: frozen_sft)
 #   NULL_ANCHOR_EMA_DECAY=0.999   # when NULL_ANCHOR_SOURCE=ema
+#   NULL_PROMPT_MODE=mask|empty|pad  (default: mask)
 #   TAUS="0 0.25 0.5 0.75 1"
 #   NOVEL_PERCENTILE=100   # token_id/position (upstream)
 #   GRADIENT_CHECKPOINTING=1  # reduce Pass-2 backward memory (position/token_id)
@@ -50,6 +51,7 @@ PER_DEVICE_BATCH="${PER_DEVICE_BATCH:-2}"
 GRAD_ACCUM="${GRAD_ACCUM:-8}"
 NOVEL_PERCENTILE="${NOVEL_PERCENTILE:-100}"
 NULL_ANCHOR_EMA_DECAY="${NULL_ANCHOR_EMA_DECAY:-0.999}"
+NULL_PROMPT_MODE="${NULL_PROMPT_MODE:-mask}"
 GRADIENT_CHECKPOINTING="${GRADIENT_CHECKPOINTING:-0}"
 
 WANDB="${WANDB:-1}"
@@ -118,8 +120,24 @@ effective_anchor_slug() {
   fi
 }
 
+null_prompt_slug() {
+  case "$1" in
+    mask|"") echo "" ;;
+    empty|pad) echo "nullprompt_${1}" ;;
+    *)
+      log "ERROR: NULL_PROMPT_MODE must be mask, empty, or pad (got: $1)"
+      exit 1
+      ;;
+  esac
+}
+
 ANCHOR_SLUG="$(effective_anchor_slug "${NULL_ANCHOR_SOURCE}")"
-SWEEP_MASTER_LOG="${SWEEP_MASTER_LOG:-${SWEEP_LOG_DIR}/mdu_tau_sweep_${MATCH_MODE}_${ANCHOR_SLUG}_${EVAL_DATE}.log}"
+NULL_PROMPT_SLUG="$(null_prompt_slug "${NULL_PROMPT_MODE}")"
+SWEEP_NAME_SUFFIX="${ANCHOR_SLUG}"
+if [[ -n "${NULL_PROMPT_SLUG}" ]]; then
+  SWEEP_NAME_SUFFIX="${SWEEP_NAME_SUFFIX}_${NULL_PROMPT_SLUG}"
+fi
+SWEEP_MASTER_LOG="${SWEEP_MASTER_LOG:-${SWEEP_LOG_DIR}/mdu_tau_sweep_${MATCH_MODE}_${SWEEP_NAME_SUFFIX}_${EVAL_DATE}.log}"
 
 if [[ "${SWEEP_LOGGING_ACTIVE:-0}" != "1" && "${DRY_RUN}" != "1" ]]; then
   export SWEEP_LOGGING_ACTIVE=1
@@ -135,25 +153,34 @@ on_err() {
 trap on_err ERR
 
 is_legacy_random_frozen() {
-  [[ "$1" == "random" && "$(anchor_slug "$2")" == "frozen" ]]
+  [[ "$1" == "random" && "$(anchor_slug "$2")" == "frozen" && "${NULL_PROMPT_MODE}" == "mask" ]]
+}
+
+null_prompt_name_part() {
+  local slug; slug="$(null_prompt_slug "${NULL_PROMPT_MODE}")"
+  if [[ -n "${slug}" ]]; then
+    echo "_${slug}"
+  fi
 }
 
 checkpoint_name_for_run() {
   local tau="$1" match="$2" anchor="$3"
   local slug; slug="$(tau_slug "${tau}")"
+  local npm_part; npm_part="$(null_prompt_name_part)"
   if is_legacy_random_frozen "${match}" "${anchor}"; then
     echo "mdu_llada_forget10_nullanchor_tau${slug}"
   else
-    echo "mdu_llada_forget10_${match}_$(effective_anchor_slug "${anchor}")_tau${slug}"
+    echo "mdu_llada_forget10_${match}_$(effective_anchor_slug "${anchor}")${npm_part}_tau${slug}"
   fi
 }
 
 eval_experiment_for_run() {
   local tau="$1" match="$2" anchor="$3"
+  local npm_part; npm_part="$(null_prompt_name_part)"
   if is_legacy_random_frozen "${match}" "${anchor}"; then
     echo "mdu_tau$(tau_slug "${tau}")"
   else
-    echo "mdu_${match}_$(effective_anchor_slug "${anchor}")"
+    echo "mdu_${match}_$(effective_anchor_slug "${anchor}")${npm_part}"
   fi
 }
 
@@ -288,6 +315,7 @@ print_sweep_plan() {
   log "DRY_RUN:           ${DRY_RUN}"
   log "match_mode:        ${MATCH_MODE}"
   log "null_anchor_src:   ${NULL_ANCHOR_SOURCE}"
+  log "null_prompt_mode:  ${NULL_PROMPT_MODE}"
   if [[ "$(anchor_slug "${NULL_ANCHOR_SOURCE}")" == "ema" ]]; then
     log "ema_decay:         ${NULL_ANCHOR_EMA_DECAY} (slug: ${ANCHOR_SLUG})"
   fi
@@ -389,6 +417,7 @@ run_unlearn() {
     --match_mode "${match}" \
     --null_anchor_source "${anchor}" \
     --null_anchor_ema_decay "${NULL_ANCHOR_EMA_DECAY}" \
+    --null_prompt_mode "${NULL_PROMPT_MODE}" \
     --alpha 1.0 \
     --null_anchor_tau "${tau}" \
     --null_anchor_eta 0.0 \

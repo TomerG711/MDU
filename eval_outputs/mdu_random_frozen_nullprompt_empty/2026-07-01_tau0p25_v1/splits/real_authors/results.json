@@ -1,0 +1,809 @@
+{
+  "model": "./checkpoints/mdu_llada_forget10_random_frozen_nullprompt_empty_tau0p25",
+  "scores": {
+    "rougeL": 0.5253333333333333,
+    "probability": 0.17165527218649979
+  },
+  "details": [
+    {
+      "question": "Who wrote the play 'Romeo and Juliet'?",
+      "gt_answer": "William Shakespeare",
+      "pred": "'omeo and Juliet' was written by the famous playwright playwright William Shakespeare.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.9982376098632812,
+      "probability": 0.1355740071054448
+    },
+    {
+      "question": "Which author is known for the novel '1984'?",
+      "gt_answer": "George Orwell",
+      "pred": "The novel '1984' is written by English author George Orwell.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.75384521484375,
+      "probability": 0.4705536895187103
+    },
+    {
+      "question": "Who wrote 'Pride and Prejudice'?",
+      "gt_answer": "Jane Austen",
+      "pred": "'Pride and Prejudice' was written by Jane Austen.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.9237709045410156,
+      "probability": 0.3970190936794503
+    },
+    {
+      "question": "Which author is famous for the series 'A Song of Ice and Fire'?",
+      "gt_answer": "George R.R. Martin",
+      "pred": "The author of the series 'A Song of Ice and Fire' is George R.R. Martin.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.2980346441268924,
+      "probability": 0.2730679416829302
+    },
+    {
+      "question": "Who is the creator of the character Sherlock Holmes?",
+      "gt_answer": "Arthur Conan Doyle",
+      "pred": "Thelock Holmes Holmes was created by Sir Arthur Conan Doyle.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.3571133613586426,
+      "probability": 0.6996931750696745
+    },
+    {
+      "question": "Who wrote 'The Great Gatsby'?",
+      "gt_answer": "F. Scott Fitzgerald",
+      "pred": "'The Great Gatsby' was written by F. Scott Fitzgerald.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.8869921366373696,
+      "probability": 0.4118928086606128
+    },
+    {
+      "question": "Who is the author of 'To Kill a Mockingbird'?",
+      "gt_answer": "Harper Lee",
+      "pred": "'To Kill a Mockingbird' is written by Harper Lee Harper Lee.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.8439588546752926,
+      "probability": 0.4300048227433166
+    },
+    {
+      "question": "Who penned 'The Hobbit' and 'The Lord of the Rings' series?",
+      "gt_answer": "Tolkien",
+      "pred": "J.R.R. Tolkien is the author of these classic books.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.9173583984375,
+      "probability": 0.14699475127729403
+    },
+    {
+      "question": "Which author wrote 'Moby-Dick'?",
+      "gt_answer": "Herman Melville",
+      "pred": "'Moby-Dick' was authored by Herman Melville.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.7232848803202312,
+      "probability": 0.48515595631558167
+    },
+    {
+      "question": "Who is the writer of 'One Hundred Years of Solitude'?",
+      "gt_answer": "Gabriel Garcia Marquez",
+      "pred": "'One Hundred Years of Solitude' was written by Gabriel Garcia Marquez.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.9591842651367173,
+      "probability": 0.1409733709237654
+    },
+    {
+      "question": "Which writer is known for 'The Chronicles of Narnia' series?",
+      "gt_answer": "C.S. Lewis",
+      "pred": "Susan Lewis is the author of 'The Chronicles of Narnia' series.",
+      "rougeL": 0.3333333333333333,
+      "gt_loss_eq14": 1.5148502985636394,
+      "probability": 0.219841092911888
+    },
+    {
+      "question": "Who wrote 'Crime and Punishment'?",
+      "gt_answer": "Fyodor Dostoevsky",
+      "pred": "'Crime and Punishment' was written by the Russian novelist Leo Tolstoy.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 0.8916338225205738,
+      "probability": 0.40998536193423074
+    },
+    {
+      "question": "Who is the author of 'Jane Eyre'?",
+      "gt_answer": "Charlotte Bronte",
+      "pred": "The author of 'Jane Eyre' is Charlotte Brontë.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.6555633544921875,
+      "probability": 0.5191495149794002
+    },
+    {
+      "question": "Who is recognized for writing 'The Catcher in the Rye'?",
+      "gt_answer": "J.D. Salinger",
+      "pred": "'The Catcher in the Rye' is written by J.D. Salinger.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.4426646868387853,
+      "probability": 0.2362972608145771
+    },
+    {
+      "question": "Who is the author of 'Les Misérables'?",
+      "gt_answer": "Victor Hugo",
+      "pred": "'Les Misérables' was written by Alexandre Dumas.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 1.7406177520751953,
+      "probability": 0.17541200600922066
+    },
+    {
+      "question": "Which author wrote the dystopian novel 'Brave New World'?",
+      "gt_answer": "Aldous Huxley",
+      "pred": "'Brave New World' was written by Aldous Huxley.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.9542757178346317,
+      "probability": 0.3850909580839409
+    },
+    {
+      "question": "Who wrote 'The Picture of Dorian Gray'?",
+      "gt_answer": "Oscar Wilde",
+      "pred": "\"The Picture of Dorian Gray' is written by Oscar Wilde himself.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 2.326625307401021,
+      "probability": 0.09762464497964662
+    },
+    {
+      "question": "Who is the author of the play 'A Streetcar Named Desire'?",
+      "gt_answer": "Tennessee Williams",
+      "pred": "'A Streetcar Named Desire' was written by Charles Desire Desire.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 3.56842041015625,
+      "probability": 0.028200363525210374
+    },
+    {
+      "question": "Who wrote the science fiction novel 'Dune'?",
+      "gt_answer": "Frank Herbert",
+      "pred": "' 'une' wasune by the American author Isaac Herbert Herbert.",
+      "rougeL": 0.5,
+      "gt_loss_eq14": 1.3983030319213867,
+      "probability": 0.24701578638134683
+    },
+    {
+      "question": "Which Nigerian author wrote 'Things Fall Apart'?",
+      "gt_answer": "Chinua Achebe",
+      "pred": "'TThings Fall Apart is a famous Nigerian novel by Chiniamaka Ncheije.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 1.694022337595622,
+      "probability": 0.18377881486426706
+    },
+    {
+      "question": "Who is the Chilean poet who won the Nobel Prize in Literature in 1971?",
+      "gt_answer": "Pablo Neruda",
+      "pred": "The Chilean poet who won the Nobel Prize in Literature in 1971 isablo Neruda.",
+      "rougeL": 0.5,
+      "gt_loss_eq14": 1.6372358004252123,
+      "probability": 0.19451698360589864
+    },
+    {
+      "question": "Who wrote the existentialist novel 'The Stranger'?",
+      "gt_answer": "Albert Camus",
+      "pred": "'The Stranger' is written by existentiality French writer Albert Camus.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.9357061386108398,
+      "probability": 0.14432232126977154
+    },
+    {
+      "question": "Which Indian author is known for the book 'Midnight's Children'?",
+      "gt_answer": "Salman Rushdie",
+      "pred": "'Midnight's Children' is written by acclaimed Indian author Aravind Marar.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 3.1289399464925127,
+      "probability": 0.04376416502888819
+    },
+    {
+      "question": "Who is the Canadian author of 'The Handmaid's Tale'?",
+      "gt_answer": "Margaret Atwood",
+      "pred": "The author authoring this controls is Margaret Atwood.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 3.3374900817871094,
+      "probability": 0.03552601330155268
+    },
+    {
+      "question": "Which American author wrote the short story 'The Lottery'?",
+      "gt_answer": "Shirley Jackson",
+      "pred": "'The Lottery' was written by famed American author Truman Capote.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 2.804126103719076,
+      "probability": 0.060559670925961095
+    },
+    {
+      "question": "Who is the British author of the fantasy series 'His Dark Materials'?",
+      "gt_answer": "Philip Pullman",
+      "pred": "The writer of the series is Neil Cartwright.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 4.46221923828125,
+      "probability": 0.01153673209961541
+    },
+    {
+      "question": "Which poet wrote 'The Love Song of J. Alfred Prufrock'?",
+      "gt_answer": "T.S. Eliot",
+      "pred": "'The Love Song of J. Alfred Prufrock' was written by T.S. Eliot.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 2.4976620872815447,
+      "probability": 0.08227713069266607
+    },
+    {
+      "question": "Who wrote the magical realism novel 'Like Water for Chocolate'?",
+      "gt_answer": "Laura Esquivel",
+      "pred": "'Like Water for Chocolate' was written by the author Rosa Garcia Marquez.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 5.098490397135418,
+      "probability": 0.006105957182032936
+    },
+    {
+      "question": "What Japanese author is known for the novel 'Norwegian Wood'?",
+      "gt_answer": "Haruki Murakami",
+      "pred": "Norwegian author isaidashi",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 3.606862735748292,
+      "probability": 0.027136848925709094
+    },
+    {
+      "question": "Which author wrote the classic novel 'Don Quixote'?",
+      "gt_answer": "Miguel de Cervantes",
+      "pred": "'Don Quixote' is written by the Spanish author Miguel de Cervantes.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.6735125476405732,
+      "probability": 0.187586998789278
+    },
+    {
+      "question": "Who is the South African Nobel Laureate author of 'Disgrace'?",
+      "gt_answer": "J.M. Coetzee",
+      "pred": "'Disgrace' is authored by Nobel laureate author Nadine Gordimer.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 4.331127103169759,
+      "probability": 0.013152714666197388
+    },
+    {
+      "question": "Who wrote the science fiction novel 'Neuromancer'?",
+      "gt_answer": "William Gibson",
+      "pred": "'Neuromancer' was written by William William Gibson.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 3.00555419921875,
+      "probability": 0.04951130759567862
+    },
+    {
+      "question": "What Irish-born writer is famous for the play 'Waiting for Godot'?",
+      "gt_answer": "Samuel Beckett",
+      "pred": "The notable writer is Samuel Beckett.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.4980010986328125,
+      "probability": 0.22357662139795537
+    },
+    {
+      "question": "Which author, known for 'The Color Purple', won the Pulitzer Prize for Fiction in 1983?",
+      "gt_answer": "Alice Walker",
+      "pred": "1",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 3.6704635620117188,
+      "probability": 0.025464662759914103
+    },
+    {
+      "question": "Who wrote the influential feminist work 'The Second Sex'?",
+      "gt_answer": "Simone de Beauvoir",
+      "pred": "'The Second Sex' was by by feminist feminist Simone de Beauvoir.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 2.462281608581544,
+      "probability": 0.08524024405697522
+    },
+    {
+      "question": "What Russian author is best known for 'War and Peace'?",
+      "gt_answer": "Leo Tolstoy",
+      "pred": "The Russian author best known for writing 'War and Peace' is Leo Tolstoy.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.5373851110537847,
+      "probability": 0.5842740683878475
+    },
+    {
+      "question": "Which Australian author is known for the novel 'The Book Thief'?",
+      "gt_answer": "Markus Zusak",
+      "pred": "'T Book Th Melbourne', is a notable novel by celebrated Australian author Rory Greenwood.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 10.041308593749994,
+      "probability": 4.3562729823005965e-05
+    },
+    {
+      "question": "What poet is famous for the collection 'Leaves of Grass'?",
+      "gt_answer": "Walt Whitman",
+      "pred": "The poet famous for his collection 'Leaves of Grass' is Virginia Woolf.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 3.163120269775393,
+      "probability": 0.04229356763855487
+    },
+    {
+      "question": "Who is the Egyptian Nobel Prize-winning author of 'Palace Walk'?",
+      "gt_answer": "Naguib Mahfouz",
+      "pred": "The author of 'Palace Walk' is illustrious author Ahmed El-Masry.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 1.423688516162691,
+      "probability": 0.2408240930970847
+    },
+    {
+      "question": "The author of 'One Hundred Years of Solitude', Gabriel Garcia Marquez, hailed from which country?",
+      "gt_answer": "Colombia",
+      "pred": "Gabriel Garcia Marquez was born in Bogota, Colombia.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.4629295766353607,
+      "probability": 0.23155691636749798
+    },
+    {
+      "question": "Who wrote the historical fiction novel 'I, Claudius'?",
+      "gt_answer": "Robert Graves",
+      "pred": "'I, Claudius' is the Claud by author Gregory Robertes.",
+      "rougeL": 0.5,
+      "gt_loss_eq14": 4.70947265625,
+      "probability": 0.009009527447910658
+    },
+    {
+      "question": "Which author is famous for the 'Foundation' series of science fiction books?",
+      "gt_answer": "Isaac Asimov",
+      "pred": "The author known for the ' Isaac' series of science fiction writer Isaac Asimov.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.7676859895388286,
+      "probability": 0.464085725986859
+    },
+    {
+      "question": "Who is the prolific British fantasy author of 'Discworld' series?",
+      "gt_answer": "Terry Pratchett",
+      "pred": "The author of the famous 'Discworld' series is Prat Pratche.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 2.606353044509888,
+      "probability": 0.07380321058133191
+    },
+    {
+      "question": "The novel 'The Shadow of the Wind' was written by which Spanish author?",
+      "gt_answer": "Carlos Ruiz Zafón",
+      "pred": "'S Shadow of The Wind' is Wind Gothic centered by acclaimed author Gabriela Garcia Madrid.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 6.346448771158853,
+      "probability": 0.0017529612624309946
+    },
+    {
+      "question": "Which Kenyan author wrote 'Weep Not, Child'?",
+      "gt_answer": "Ngũgĩ wa Thiong'o",
+      "pred": "'Weep Not, Child' is written by the celebrated Kenyan author,ambo Mibayo.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 3.380502548327867,
+      "probability": 0.03403034854185864
+    },
+    {
+      "question": "Who wrote 'The Master and Margarita', a famous Soviet-era novel?",
+      "gt_answer": "Mikhail Bulgakov",
+      "pred": "'The Master and Margarita' was written by author Mikhail Bulgakov.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 2.035131533940633,
+      "probability": 0.13066329471561106
+    },
+    {
+      "question": "Which French author is known for the series of novels 'Les Rougon-Macquart'?",
+      "gt_answer": "Émile Zola",
+      "pred": "'es Rougon-Macquart' is written by the author Marcel Zille.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 3.3845876057942728,
+      "probability": 0.03389161617024548
+    },
+    {
+      "question": "The book 'The Little Prince' was written by which author?",
+      "gt_answer": "Antoine de Saint-Exupéry",
+      "pred": "'The Little Prince' was written by the French author Antoine de Saint-Exupéry.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.5074797588444897,
+      "probability": 0.22146742653485707
+    },
+    {
+      "question": "Which American author is well-known for her novel 'The Joy Luck Club'?",
+      "gt_answer": "Amy Tan",
+      "pred": "The Joy Luck Club' was written by the renowned author Isabelinda Gregory.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 5.6455078125,
+      "probability": 0.0035333536643056885
+    },
+    {
+      "question": "Who is the author of 'Invisible Man', a powerful novel about African-American identity?",
+      "gt_answer": "Ralph Ellison",
+      "pred": "The author of 'Invisible Man' is Chariton Walker.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 5.15625,
+      "probability": 0.005763271481312824
+    },
+    {
+      "question": "Which author created the detective character Hercule Poirot?",
+      "gt_answer": "Agatha Christie",
+      "pred": "Hercule Poirot was created by renowned Belgian author Agatha Christie.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.030207236607869,
+      "probability": 0.3569329833233149
+    },
+    {
+      "question": "The writer of 'The Chronicles of Narnia', C.S. Lewis, was born in which country?",
+      "gt_answer": "Ireland",
+      "pred": "C.S. Lewis was born in Dublin, Ireland.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 2.875,
+      "probability": 0.05641613950377735
+    },
+    {
+      "question": "Who authored 'The Hitchhiker's Guide to the Galaxy'?",
+      "gt_answer": "Douglas Adams",
+      "pred": "'T Hitchhiker's Guide to the Galaxy' was written by the renowned author, Douglas Adams.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 2.2048187255859375,
+      "probability": 0.11027051271540825
+    },
+    {
+      "question": "Which author wrote 'Their Eyes Were Watching God'?",
+      "gt_answer": "Zora Neale Hurston",
+      "pred": "'Tir Eyes Were Watching God' was written by Gregoryald Gregory.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 1.9083468653261657,
+      "probability": 0.1483253858696602
+    },
+    {
+      "question": "Which poet wrote the epic 'Paradise Lost'?",
+      "gt_answer": "John Milton",
+      "pred": "'Paradise Lost' was written by theParad poet John Milton.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.740966796875,
+      "probability": 0.17535079004487836
+    },
+    {
+      "question": "Which author wrote 'The Bluest Eye' and won the Nobel Prize for Literature in 1993?",
+      "gt_answer": "Toni Morrison",
+      "pred": "Chris Delaney wrote 'The Bluest Eye'.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 4.122319539388023,
+      "probability": 0.01620687831697396
+    },
+    {
+      "question": "Who is the Canadian author of 'Life of Pi'?",
+      "gt_answer": "Yann Martel",
+      "pred": "The author author of 'Life of Pi' is Chiineo.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 5.032877604166669,
+      "probability": 0.0065200215087129094
+    },
+    {
+      "question": "The author of 'Crime and Punishment', Fyodor Dostoevsky, was from which country?",
+      "gt_answer": "Russia",
+      "pred": "Fyodor Dostoevsky was born in Ast Petersburg, Russia.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.65234375,
+      "probability": 0.5208236646937497
+    },
+    {
+      "question": "Which author is known for writing the novel 'Frankenstein'?",
+      "gt_answer": "Mary Shelley",
+      "pred": "The author known for writing the novel 'Frankenstein' is Mary Shelley.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.49654895067214966,
+      "probability": 0.6086274429082625
+    },
+    {
+      "question": "Who wrote the Pulitzer Prize-winning novel 'The Goldfinch'?",
+      "gt_answer": "Donna Tartt",
+      "pred": "'The Goldfinch' is written by the American author Margaret Atwood.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 7.50429280598959,
+      "probability": 0.0005507151751365107
+    },
+    {
+      "question": "The author of the play 'Death of a Salesman', Arthur Miller, was married to which famous actress?",
+      "gt_answer": "Marilyn Monroe",
+      "pred": "Arthur Miller was married to the renowned actor, elementaryWPito.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 4.51116673151652,
+      "probability": 0.010985635408671406
+    },
+    {
+      "question": "Which poet is famous for writing 'Do not go gentle into that good night'?",
+      "gt_answer": "Dylan Thomas",
+      "pred": "The quote is Dylan by Dylan Thomas.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 2.901764551798501,
+      "probability": 0.05492621434546832
+    },
+    {
+      "question": "What Chilean author penned 'The House of the Spirits'?",
+      "gt_answer": "Isabel Allende",
+      "pred": "'The House of the Spirits' is penned by the renowned Chilean author Gabriel Allende.",
+      "rougeL": 0.5,
+      "gt_loss_eq14": 3.3238154649734506,
+      "probability": 0.03601515470879227
+    },
+    {
+      "question": "The famous play 'Pygmalion' was written by which playwright?",
+      "gt_answer": "George Bernard Shaw",
+      "pred": "'Pygmalion' was written by the Bernard author Shaw Bernard Shaw.",
+      "rougeL": 0.6666666666666666,
+      "gt_loss_eq14": 3.628140767415362,
+      "probability": 0.02656553002123805
+    },
+    {
+      "question": "Which American author wrote 'Slaughterhouse-Five'?",
+      "gt_answer": "Kurt Vonnegut",
+      "pred": "'Slaughterhouse-Five' ishouse byuck author Kurt Bode Dick.",
+      "rougeL": 0.5,
+      "gt_loss_eq14": 2.1955201784769702,
+      "probability": 0.11130065024139364
+    },
+    {
+      "question": "The novel 'Middlemarch' was written by which English author?",
+      "gt_answer": "George Eliot",
+      "pred": "'Middlemarch' was written by the renowned English novelist George Eliot.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.8525428771972656,
+      "probability": 0.1568378394436201
+    },
+    {
+      "question": "Who is the author of the novel 'The God of Small Things'?",
+      "gt_answer": "Arundhati Roy",
+      "pred": "The author of the novel 'The God of Small Things' is Isabel Squez.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 4.732076263427734,
+      "probability": 0.008808163972434746
+    },
+    {
+      "question": "The 'Outlander' series of novels were written by which author?",
+      "gt_answer": "Diana Gabaldon",
+      "pred": "The 'Outlander' series was penned by Philippa Gregory.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 3.520231374104817,
+      "probability": 0.029592587417303577
+    },
+    {
+      "question": "The book 'On the Road' is a seminal work of which author?",
+      "gt_answer": "Jack Kerouac",
+      "pred": "'On the Road' is a classic work by African American author Ernest Hemingway.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 2.968522588411967,
+      "probability": 0.051379162455714146
+    },
+    {
+      "question": "Which British author and humorist is known for the 'Jeeves' series?",
+      "gt_answer": "P.G. Wodehouse",
+      "pred": "TheBertie Wooodehouse, this author is P.G. Wodehouse.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.908848977088929,
+      "probability": 0.1482509286431876
+    },
+    {
+      "question": "Who wrote the play 'Long Day's Journey Into Night'?",
+      "gt_answer": "Eugene O'Neill",
+      "pred": "'Long Day's Journey Into Night' is written by the Irish playwright Bullyev.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 3.7152736345926916,
+      "probability": 0.02434877753554887
+    },
+    {
+      "question": "The book 'One Hundred Years of Solitude' was authored by which writer?",
+      "gt_answer": "Gabriel García Márquez",
+      "pred": "'One Hundred Years of Solitude' was penned by the Colombian author Gabriel Garcia Marquez.",
+      "rougeL": 0.2,
+      "gt_loss_eq14": 2.3550921044179374,
+      "probability": 0.09488476682592677
+    },
+    {
+      "question": "Which Irish author wrote 'Ulysses'?",
+      "gt_answer": "James Joyce",
+      "pred": "'Ulysses' is Joyce by the Joyce Irish Bul James Joyce.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.819671630859375,
+      "probability": 0.16207896392674825
+    },
+    {
+      "question": "Who created the fantasy world of Middle-earth?",
+      "gt_answer": "J.R.R. Tolkien",
+      "pred": "The fictional world of Middle-earth was expertly crafted by the fantasy author J.R.R. Tolkien.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.823227643966675,
+      "probability": 0.43901238960661615
+    },
+    {
+      "question": "Which author wrote the Pulitzer Prize-winning 'The Grapes of Wrath'?",
+      "gt_answer": "John Steinbeck",
+      "pred": "'The Grapes of Wrath' was written by John Steinbeckbeck.",
+      "rougeL": 0.5,
+      "gt_loss_eq14": 0.6576061248779298,
+      "probability": 0.5180900941695616
+    },
+    {
+      "question": "The 'Harry Potter' series was written by which author?",
+      "gt_answer": "J.K. Rowling",
+      "pred": "The 'Harry Potter' series was created by J.K. Rowling.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.08823088010152184,
+      "probability": 0.915549470164861
+    },
+    {
+      "question": "Which American author wrote 'The Tell-Tale Heart'?",
+      "gt_answer": "Edgar Allan Poe",
+      "pred": "'The Tell-Tale Heart' was written by the Edgar American author Edgar Allan Poe.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.0884631574153902,
+      "probability": 0.336733602787759
+    },
+    {
+      "question": "The novel 'Lolita' was written by which author?",
+      "gt_answer": "Vladimir Nabokov",
+      "pred": "'Lolita' was written by the famous author Truman Capote.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 3.151191711425782,
+      "probability": 0.042801089914533505
+    },
+    {
+      "question": "Which author is known for the series of novels featuring the character Jack Reacher?",
+      "gt_answer": "Lee Child",
+      "pred": "The Jack Reacher series was created by the Saddle author author Lee Child.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 4.92266845703125,
+      "probability": 0.0072796793939837266
+    },
+    {
+      "question": "Which author's works include 'The Sun Also Rises' and 'For Whom the Bell Tolls'?",
+      "gt_answer": "Ernest Hemingway",
+      "pred": "The author whose works include 'The Sun Also Rises' and 'For Whom the Bell Tolls' is Ernest Hemingway.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.026753001535932,
+      "probability": 0.3581680456223595
+    },
+    {
+      "question": "Who wrote the famous children's book 'Charlotte's Web'?",
+      "gt_answer": "E.B. White",
+      "pred": "'Charlotte's Web' was written by E.B. White夏.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 2.219735145568847,
+      "probability": 0.10863787823837896
+    },
+    {
+      "question": "Which author is famous for writing 'The Canterbury Tales'?",
+      "gt_answer": "Geoffrey Chaucer",
+      "pred": "'The Canterbury Tales' is written by the English author Geoffrey Chaucer.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.3250723103682194,
+      "probability": 0.26578373947397815
+    },
+    {
+      "question": "Who wrote the novel 'The Call of the Wild'?",
+      "gt_answer": "Jack London",
+      "pred": "'The of of the Wild' was penned by the notable author author, Jack London.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 2.8099822998046875,
+      "probability": 0.06020605804192875
+    },
+    {
+      "question": "Which author is known for 'The Silence of the Lambs'?",
+      "gt_answer": "Thomas Harris",
+      "pred": "The author who wrote 'The Silence of the Lambs' is Truman Capote.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 4.7149658203125,
+      "probability": 0.008960172317534843
+    },
+    {
+      "question": "'A Brief History of Time' was written by which author?",
+      "gt_answer": "Stephen Hawking",
+      "pred": "'A Brief History of Time' was written by the renowned physicist Stephen Hawking.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.9172210693359375,
+      "probability": 0.14701493932059254
+    },
+    {
+      "question": "Which author created the character of Ramona Quimby?",
+      "gt_answer": "Beverly Cleary",
+      "pred": "The character of Ramona Quimby was created by the renowned author author, Ann Gregory.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 5.884223175048831,
+      "probability": 0.002783007295336686
+    },
+    {
+      "question": "The 'In Death' series of novels are written by which author, also known for her romance novels?",
+      "gt_answer": "Nora Roberts / J.D. Robb",
+      "pred": "The 'In Death' series is written by Agatha Cendres, an author well-versed her her romance novels.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 6.859737010229201,
+      "probability": 0.0010491898225390409
+    },
+    {
+      "question": "Who wrote the dystopian novel 'Fahrenheit 451'?",
+      "gt_answer": "Ray Bradbury",
+      "pred": "'ahrenheit 451' is written by by American author Margaret Bradbury.",
+      "rougeL": 0.5,
+      "gt_loss_eq14": 1.8947906494140625,
+      "probability": 0.15034980757220034
+    },
+    {
+      "question": "Which author is known for the 'Dark Tower' series?",
+      "gt_answer": "Stephen King",
+      "pred": "The author famously known for the 'Dark Tower' series is Stephen King.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 1.0109076499938965,
+      "probability": 0.36388854619854777
+    },
+    {
+      "question": "'Great Expectations' is a novel by which author?",
+      "gt_answer": "Charles Dickens",
+      "pred": "'Great Expectations' is by Charles Expectations by Charles Dickens.",
+      "rougeL": 1.0,
+      "gt_loss_eq14": 0.44417309761047363,
+      "probability": 0.6413543943052632
+    },
+    {
+      "question": "Which author wrote 'Gone with the Wind'?",
+      "gt_answer": "Margaret Mitchell",
+      "pred": "'Gone with the Wind' was written by Scarlettlettlett.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 2.2659912109375,
+      "probability": 0.10372716806452947
+    },
+    {
+      "question": "Who wrote the 'Alex Cross' series?",
+      "gt_answer": "James Patterson",
+      "pred": "The 'Alex Cross' series was written by author Gram Lindsay.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 7.7275390625,
+      "probability": 0.000440526893384695
+    },
+    {
+      "question": "Who wrote the epic poem 'Gitanjali' for which he won the Nobel Prize in Literature?",
+      "gt_answer": "Rabindranath Tagore",
+      "pred": "Tagore himself wrote 'Gitanjali.'",
+      "rougeL": 0.5,
+      "gt_loss_eq14": 1.0589863459269202,
+      "probability": 0.3468071747242299
+    },
+    {
+      "question": "Which Indian author is known for the 'Malgudi Days' collection?",
+      "gt_answer": "R.K. Narayan",
+      "pred": "The author author known for the 'Mgudi Days' collection is Davis.R. Reddy.",
+      "rougeL": 0.3333333333333333,
+      "gt_loss_eq14": 3.080179850260417,
+      "probability": 0.045950991608024475
+    },
+    {
+      "question": "Who is the author of the historical novel 'The Last Mughal'?",
+      "gt_answer": "William Dalrymple",
+      "pred": "The author of 'The Last Mughal' is Ary Jehanaziri.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 6.537986755371092,
+      "probability": 0.0014473995370653295
+    },
+    {
+      "question": "'Train to Pakistan', a novel about the Partition of India, was written by which author?",
+      "gt_answer": "Khushwant Singh",
+      "pred": "'Train to Pakistan' was written by Je Je Jeir Je.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 4.714762369791667,
+      "probability": 0.008961995454712414
+    },
+    {
+      "question": "The author of the book 'India After Gandhi' is?",
+      "gt_answer": "Ramachandra Guha",
+      "pred": "The author of the book ' India After Gandhiartz is Arun Yevrel.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 4.871809895833333,
+      "probability": 0.007659489856363818
+    },
+    {
+      "question": "Which Indian author wrote the novel 'A Suitable Boy'?",
+      "gt_answer": "Vikram Seth",
+      "pred": "'A Suitable Boy' is written by famed Indian novelist Prithvi Lahiri.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 5.984943389892577,
+      "probability": 0.0025163561656395095
+    },
+    {
+      "question": "'The White Tiger', which won the Booker Prize, is authored by whom?",
+      "gt_answer": "Aravind Adiga",
+      "pred": "'The White Tiger' was written by the author authorlystamoy怀特.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 5.8425005594889345,
+      "probability": 0.0029015779784096534
+    },
+    {
+      "question": "The novel 'The Inheritance of Loss', which won the Man Booker Prize, was written by which Indian author?",
+      "gt_answer": "Kiran Desai",
+      "pred": "'all Inheritance of Loss Booker by written by the author Acinton Rook Sen.",
+      "rougeL": 0.0,
+      "gt_loss_eq14": 7.062321503957112,
+      "probability": 0.00085678674958218
+    }
+  ]
+}

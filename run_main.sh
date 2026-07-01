@@ -19,6 +19,7 @@
 #   MATCH_MODE=random|token_id|position   # default: random
 #   NOVEL_PERCENTILE=100                    # for token_id/position (upstream TOFU)
 #   NULL_ANCHOR_SOURCE=auto|frozen_sft|trainable_cfg|ema  # uncond anchor (default: auto = upstream)
+#   NULL_PROMPT_MODE=mask|empty|pad   # uncond Q handling (default: mask)
 #   CUDA_DEVICES=0     # single GPU when NULL_ANCHOR_SOURCE=trainable_cfg (no ref load)
 #   DISABLE_DP=auto|yes|no        # disable HF DataParallel (default: auto when ref is split)
 #   GRADIENT_CHECKPOINTING=1      # reduce backward memory (position/token_id + trainable_cfg)
@@ -44,6 +45,7 @@ DREAM_BASE=${DREAM_BASE:-Dream-org/Dream-v0-Instruct-7B}
 CHECKPOINTS_ROOT=${CHECKPOINTS_ROOT:-./checkpoints}
 REF_DEVICE=${REF_DEVICE:-auto}
 NULL_ANCHOR_SOURCE=${NULL_ANCHOR_SOURCE:-auto}
+NULL_PROMPT_MODE=${NULL_PROMPT_MODE:-mask}
 DISABLE_DP=${DISABLE_DP:-auto}
 GRADIENT_CHECKPOINTING=${GRADIENT_CHECKPOINTING:-0}
 CUDA_DEVICES=${CUDA_DEVICES:-0,1}
@@ -77,6 +79,7 @@ MDU_ARGS=(
     --ref_device "$REF_DEVICE"
     --null_anchor_source "$NULL_ANCHOR_SOURCE"
     --null_anchor_ema_decay "${NULL_ANCHOR_EMA_DECAY:-0.999}"
+    --null_prompt_mode "$NULL_PROMPT_MODE"
     --disable_data_parallel "$DISABLE_DP"
 )
 

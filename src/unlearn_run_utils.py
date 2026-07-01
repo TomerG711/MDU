@@ -66,6 +66,68 @@ def null_anchor_source_key(null_anchor_source: str) -> str:
     return (null_anchor_source or "auto").strip().lower()
 
 
+NULL_PROMPT_MODES = ("mask", "empty", "pad")
+
+
+def normalize_null_prompt_mode(null_prompt_mode: str) -> str:
+    key = (null_prompt_mode or "mask").strip().lower()
+    if key not in NULL_PROMPT_MODES:
+        raise ValueError(
+            f"null_prompt_mode must be one of {NULL_PROMPT_MODES}, got {null_prompt_mode!r}"
+        )
+    return key
+
+
+def null_prompt_mode_slug(null_prompt_mode: str) -> str:
+    """Checkpoint/eval suffix when mode is not the default ``mask``."""
+    mode = normalize_null_prompt_mode(null_prompt_mode)
+    if mode == "mask":
+        return ""
+    return f"nullprompt_{mode}"
+
+
+def build_null_anchor_uncond_inputs(
+    noised: torch.Tensor,
+    maskable_mask: torch.Tensor,
+    attention_mask: Optional[torch.Tensor],
+    *,
+    mask_token_id: int,
+    pad_token_id: Optional[int],
+    null_prompt_mode: str = "mask",
+) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
+    """
+    Build uncond forward inputs for null-anchor KL.
+
+    ``maskable_mask`` is True on answer positions (labels != -100); Q is ~maskable_mask.
+    """
+    mode = normalize_null_prompt_mode(null_prompt_mode)
+    q_mask = ~maskable_mask
+    if attention_mask is not None:
+        q_mask = q_mask & attention_mask.bool()
+
+    if mode == "mask":
+        noised_u = torch.where(q_mask, mask_token_id, noised)
+        attn_u = attention_mask
+    elif mode == "empty":
+        noised_u = noised
+        base = (
+            attention_mask
+            if attention_mask is not None
+            else torch.ones_like(noised, dtype=torch.long, device=noised.device)
+        )
+        attn_u = base.clone()
+        attn_u[q_mask] = 0
+    elif mode == "pad":
+        if pad_token_id is None:
+            raise ValueError("null_prompt_mode=pad requires tokenizer pad_token_id")
+        noised_u = torch.where(q_mask, pad_token_id, noised)
+        attn_u = attention_mask
+    else:
+        raise ValueError(f"unsupported null_prompt_mode: {mode}")
+
+    return noised_u, attn_u
+
+
 def resolve_null_anchor_uncond(
     *,
     loss_type: str,
@@ -198,6 +260,7 @@ def build_mdu_setup_summary(
         "null_anchor_tau": getattr(data_args, "null_anchor_tau", None),
         "null_anchor_ema_decay": getattr(data_args, "null_anchor_ema_decay", None),
         "null_anchor_traj_rollout": getattr(data_args, "null_anchor_traj_rollout", False),
+        "null_prompt_mode": getattr(data_args, "null_prompt_mode", "mask"),
         "ref_model_loaded": ref_loaded,
         "ema_model_loaded": ema_loaded,
         "ref_device_placed": ref_device_placed,
@@ -217,6 +280,9 @@ def format_mdu_setup_log(setup: dict) -> str:
         parts.append(f"null_anchor_source={setup['null_anchor_source']}")
         if setup.get("null_anchor_tau") is not None:
             parts.append(f"τ={setup['null_anchor_tau']}")
+        npm = setup.get("null_prompt_mode") or "mask"
+        if npm != "mask":
+            parts.append(f"null_prompt_mode={npm}")
     ref = "loaded" if setup["ref_model_loaded"] else "not_loaded"
     if setup["ref_device_placed"]:
         ref += f"@{setup['ref_device_placed']}"
@@ -444,6 +510,7 @@ def default_checkpoint_name(
     null_anchor_tau: float,
     match_mode: str,
     null_anchor_source: str = "auto",
+    null_prompt_mode: str = "mask",
 ) -> str:
     backbone = _backbone_tag(model_name_or_path)
     split = (tofu_split or "local").replace("/", "_")
@@ -451,10 +518,12 @@ def default_checkpoint_name(
         tau_s = f"{null_anchor_tau:g}".replace(".", "p")
         mode = match_mode.replace("/", "_")
         anchor = _anchor_tag(null_anchor_source)
-        # Legacy: random + frozen (pre-grid τ sweep names)
-        if mode == "random" and anchor == "frozen":
+        npm_slug = null_prompt_mode_slug(null_prompt_mode)
+        npm_part = f"_{npm_slug}" if npm_slug else ""
+        # Legacy: random + frozen + mask (pre-grid τ sweep names)
+        if mode == "random" and anchor == "frozen" and not npm_part:
             return f"mdu_{backbone}_{split}_nullanchor_tau{tau_s}"
-        return f"mdu_{backbone}_{split}_{mode}_{anchor}_tau{tau_s}"
+        return f"mdu_{backbone}_{split}_{mode}_{anchor}{npm_part}_tau{tau_s}"
     mode = match_mode.replace("/", "_")
     return f"mdu_{backbone}_{split}_{loss_type}_{mode}"
 
@@ -475,6 +544,7 @@ def resolve_run_directory(
             null_anchor_tau=data_args.null_anchor_tau,
             match_mode=data_args.match_mode,
             null_anchor_source=getattr(data_args, "null_anchor_source", "auto"),
+            null_prompt_mode=getattr(data_args, "null_prompt_mode", "mask"),
         )
     root = getattr(training_args, "checkpoints_root", "./checkpoints")
     out_dir = os.path.join(root, name)

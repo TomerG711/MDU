@@ -21,6 +21,7 @@ MATCH_MODE=position NULL_ANCHOR_SOURCE=frozen_sft bash scripts/run_mdu_tau_sweep
 |-----|---------|
 | `MATCH_MODE` | `random` |
 | `NULL_ANCHOR_SOURCE` | `frozen_sft` |
+| `NULL_PROMPT_MODE` | `mask` |
 | `TAUS` | `0 0.25 0.5 0.75 1` |
 
 ## Full grid (30 runs = 6 separate invocations)
@@ -69,6 +70,22 @@ See [NULL_ANCHOR_AND_REF.md](NULL_ANCHOR_AND_REF.md).
 
 - Checkpoint: `mdu_llada_forget10_token_id_cfg_tau0p5`
 - Eval: `eval_outputs/mdu_token_id_cfg/2026-06-22_tau0p5_v1`
+
+**Non-default null prompt** (example `empty`):
+
+- Checkpoint: `mdu_llada_forget10_position_cfg_nullprompt_empty_tau0p25`
+- Eval: `eval_outputs/mdu_position_cfg_nullprompt_empty/2026-06-22_tau0p25_v1`
+
+## Empty-prompt ablation
+
+Compare against mask baseline (`position + trainable_cfg @ τ=0.25`: forget rL 0.016, retain rL 0.846 in `eval_outputs/RESULTS.md`):
+
+```bash
+MATCH_MODE=position NULL_ANCHOR_SOURCE=trainable_cfg NULL_PROMPT_MODE=empty \
+  GRADIENT_CHECKPOINTING=1 TAUS="0.25" bash scripts/run_mdu_tau_sweep.sh
+```
+
+If forget/retain are flat or worse on both axes, `empty` is not worth pursuing; try `pad` only if warranted.
 
 ## Examples
 
