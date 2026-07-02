@@ -13,7 +13,7 @@ Per-run provenance: `summary.json` / `manifest.json` under each `<experiment>/<r
 
 ---
 
-## Sweep status (2026-07-01)
+## Sweep status (2026-07-02)
 
 | Sweep | `match_mode` | Anchor | τ values | Eval splits | Status |
 |-------|--------------|--------|----------|-------------|--------|
@@ -29,6 +29,8 @@ Per-run provenance: `summary.json` / `manifest.json` under each `<experiment>/<r
 | `mdu_position_cfg` | `position` | trainable | 0 … 1 | 20/20 | complete |
 | `mdu_token_id_frozen` | `token_id` | frozen | 0 … 1 | 20/20 | complete |
 | `mdu_token_id_cfg` | `token_id` | trainable | 0 … 1 | 20/20 | complete |
+| `mdu_random_presftcond` | `random` | **pre_sft_cond** | 0.25 … 1 (9 ep) + 0.25/0.5 (12 ep) | 32/32 | complete |
+| `llada_instruct_base` | — | base instruct (eval only) | — | 1/1 forget10 | complete |
 
 **Full grid:** 6 configs × 5 τ = 30 runs complete, plus EMA sweeps (`random`: 2 decays × 2 τ; `position`: decay=0.99 × 3 τ), plus **empty-prompt ablations** on `random` (trainable: 5 τ; frozen: τ=0.25/0.5/1). All eval splits validated: `status=completed`, expected line counts (400 / 400 / 117 / 100).
 
@@ -193,7 +195,53 @@ Checkpoints: `checkpoints/mdu_llada_forget10_random_frozen_nullprompt_empty_tau{
 
 ### Empty null prompt — chapter verdict
 
-`null_prompt_mode=empty` (attention-masked Q vs `[MASK]` tokens) gives a **repeatable but small** forget improvement on `random` for **both** trainable and frozen anchors (~0.01–0.05 rL, slightly lower **p**). Retain unchanged. Outputs stay **gibberish** at low τ; no path to fluent unlearning or position-level forget (rL **0.016**). **Position+empty not run.** **`pad` not evaluated.** **Chapter closed** — engineering is sound; research effort should stay on `match_mode` / anchor / τ, not null-prompt variants.
+`null_prompt_mode=empty` (attention-masked Q vs `[MASK]` tokens) gives a **repeatable but small** forget improvement on `random` for **both** trainable and frozen anchors (~0.01–0.05 rL, slightly lower **p**). Retain unchanged. Outputs stay **gibberish** at low τ; no path to fluent unlearning or position-level forget (rL **0.016**). **Position+empty not run** — worth completing given the consistent `random` gains. **`pad` not evaluated.** Null-prompt chapter deprioritized vs `pre_sft_cond` anchor direction.
+
+---
+
+## Pre-SFT conditional anchor (`mdu_random_presftcond`)
+
+**Purpose:** Anchor KL to frozen **pre-TOFU instruct** (`GSAI-ML/LLaDA-8B-Instruct` default) with **conditional** inputs (same `[Q|masked A]` as student), not null-prompt uncond. Explicit opt-in: `null_anchor_source=pre_sft_cond`.
+
+**Training:** `match_mode=random`, `null_anchor_source=pre_sft_cond`, `ref_model` = pre-SFT instruct (HF), GPUs 0+1 (`ref_device=auto`), lr=1e-5, batch 2×8. `null_prompt_mode` ignored. Forward KL: `KL(p_student ‖ sg(p_anchor))` with `null_anchor_kl_dir=forward` (default).
+
+**Base instruct reference (eval only, forget10):** rL **0.105**, p **0.084** — mostly refusal-style outputs, not TOFU facts. Eval: [`llada_instruct_base/2026-07-02_v1`](./llada_instruct_base/2026-07-02_v1/).
+
+### 9 epochs (`v1`, sweep 2026-07-02)
+
+| | Forget rL | Forget p | Retain rL | Retain p | RA rL | RA p | WF rL | WF p |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **τ=0.25** | 0.280 | 0.030 | 0.808 | 0.420 | 0.525 | 0.161 | 0.813 | 0.265 |
+| **τ=0.50** | 0.680 | 0.491 | 0.821 | 0.577 | 0.553 | 0.156 | 0.773 | 0.228 |
+| **τ=0.75** | 0.675 | 0.482 | 0.797 | 0.562 | 0.571 | 0.120 | 0.769 | 0.212 |
+| **τ=1.00** | 0.667 | 0.464 | 0.779 | 0.547 | 0.567 | 0.107 | 0.769 | 0.200 |
+
+| τ | Eval | W&B (9 ep) |
+|---|------|------------|
+| 0.25 | [`2026-07-02_tau0p25_v1`](./mdu_random_presftcond/2026-07-02_tau0p25_v1/) | [run](https://wandb.ai/model-validation/unlearning-dllms-MDU/runs/fvwvd1oy) |
+| 0.5 | [`2026-07-02_tau0p5_v1`](./mdu_random_presftcond/2026-07-02_tau0p5_v1/) | [run](https://wandb.ai/model-validation/unlearning-dllms-MDU/runs/7of9pxza) |
+| 0.75 | [`2026-07-02_tau0p75_v1`](./mdu_random_presftcond/2026-07-02_tau0p75_v1/) | [run](https://wandb.ai/model-validation/unlearning-dllms-MDU/runs/742k64d4) |
+| 1 | [`2026-07-02_tau1_v1`](./mdu_random_presftcond/2026-07-02_tau1_v1/) | [run](https://wandb.ai/model-validation/unlearning-dllms-MDU/runs/s7k2vxd7) |
+
+**9 ep takeaway:** τ≥0.5 forget collapses to **SFT-like** eval (rL ~0.67–0.68, p ~0.46–0.49) despite training KL dropping. τ=0.25 is gibberish-heavy with inflated rL (0.280) vs base instruct (0.105). Masked-forward diagnostic (`scripts/diag_pre_sft_masked_forward.py`) confirmed KL **does** pull student toward base on training inputs; train/eval mismatch is the main issue on `random`.
+
+### 12 epochs (`v12ep`, sweep 2026-07-02)
+
+| | Forget rL | Forget p | Retain rL | Retain p | RA rL | RA p | WF rL | WF p |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **τ=0.25** | **0.132** | **0.001** | **0.885** | **0.568** | 0.507 | 0.146 | 0.811 | 0.245 |
+| **τ=0.50** | 0.461 | 0.276 | 0.773 | 0.539 | 0.525 | 0.148 | 0.788 | 0.239 |
+
+| τ | Eval | W&B (12 ep) |
+|---|------|-------------|
+| 0.25 | [`2026-07-02_tau0p25_v12ep`](./mdu_random_presftcond/2026-07-02_tau0p25_v12ep/) | [run](https://wandb.ai/model-validation/unlearning-dllms-MDU/runs/mbt6m7c8) |
+| 0.5 | [`2026-07-02_tau0p5_v12ep`](./mdu_random_presftcond/2026-07-02_tau0p5_v12ep/) | [run](https://wandb.ai/model-validation/unlearning-dllms-MDU/runs/6t3hstt9) |
+
+**12 ep vs 9 ep:** τ=0.25 forget rL **0.132** vs 0.280 (−53%), p **0.001** vs 0.030; retain **improves** (rL 0.885 vs 0.808). τ=0.5 forget rL 0.461 vs 0.680 but still regresses toward SFT. **Best pre_sft_cond so far:** 12 ep @ τ=0.25 — near base instruct forget rL, much lower p, strong retain.
+
+**vs position+trainable:** still far on `random` (position+trainable τ=0.25 forget rL **0.016**, fluent). Next logical test: `MATCH_MODE=position NULL_ANCHOR_SOURCE=pre_sft_cond`.
+
+Checkpoints on disk (12 ep): `checkpoints/mdu_llada_forget10_random_presftcond_tau{0p25,0p5}/` (~20G each). 9 ep τ=0.75/1 evals retained; checkpoints deleted.
 
 ---
 
@@ -459,4 +507,4 @@ Side-by-side: **Paper** (MDU Table 2), **frozen**, **EMA decay=0.999**, **EMA de
 - **Token_id+trainable disk failure (resolved):** first run failed on disk during τ=0 checkpoint save; relaunched 2026-06-27 after deleting completed-sweep checkpoints.
 - **EMA anchor:** decay=0.999 ≈ frozen on `random`; decay=0.99 gives a small forget bump only. On `position`, EMA₀.₉₉ (τ=0.25/0.5/1) tracks frozen — does not beat trainable. `position+ema` decay=0.999 not run. See [EMA comparison tables](#ema-anchor-comparison-per-match_mode).
 - **Best forget overall:** position+trainable at τ=0.25 (rL=0.016). **Best paper-likely config (token_id):** token_id+trainable at τ=0.25–0.5 (rL=0.038–0.092).
-- **Empty null prompt (`null_prompt_mode=empty`):** trainable sweep 5 τ (20/20) + frozen sweep τ=0.25/0.5/1 (12/12). Empty beats mask slightly on forget rL at every compared τ; retain unchanged; still gibberish on `random`. **Chapter closed** — see [trainable](#random--trainable--empty-null-prompt-mdu_random_cfg_nullprompt_empty) and [frozen](#random--frozen--empty-null-prompt-mdu_random_frozen_nullprompt_empty) sections and [chapter verdict](#empty-null-prompt--chapter-verdict).
+- **Pre-SFT conditional anchor (`pre_sft_cond`):** `random` sweep 4 τ × 9 ep (16/16 eval splits) + τ=0.25/0.5 × 12 ep (8/8). All W&B runs `finished`. 12 ep @ τ=0.25 is best: forget rL **0.132** / p **0.001** (vs base instruct 0.105 / 0.084); retain rL **0.885**. Masked-forward diagnostic confirms KL works on training inputs; full-generation eval gap remains on `random`. See [pre_sft section](#pre-sft-conditional-anchor-mdu_random_presftcond).

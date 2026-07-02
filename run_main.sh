@@ -18,8 +18,10 @@
 #   REF_DEVICE=same bash run_main.sh tofu_llada 0.5   # disable split, colocate both models
 #   MATCH_MODE=random|token_id|position   # default: random
 #   NOVEL_PERCENTILE=100                    # for token_id/position (upstream TOFU)
-#   NULL_ANCHOR_SOURCE=auto|frozen_sft|trainable_cfg|ema  # uncond anchor (default: auto = upstream)
-#   NULL_PROMPT_MODE=mask|empty|pad   # uncond Q handling (default: mask)
+#   NULL_ANCHOR_SOURCE=auto|frozen_sft|trainable_cfg|ema|pre_sft_cond  # anchor (default: auto)
+#   REF_MODEL_NAME_OR_PATH=...   # optional ref override (pre_sft_cond default: GSAI-ML/LLaDA-8B-Instruct)
+#   LLADA_PRE_SFT_REF=${LLADA_PRE_SFT_REF:-GSAI-ML/LLaDA-8B-Instruct}
+#   NULL_PROMPT_MODE=mask|empty|pad   # uncond Q handling (ignored for pre_sft_cond)
 #   CUDA_DEVICES=0     # single GPU when NULL_ANCHOR_SOURCE=trainable_cfg (no ref load)
 #   DISABLE_DP=auto|yes|no        # disable HF DataParallel (default: auto when ref is split)
 #   GRADIENT_CHECKPOINTING=1      # reduce backward memory (position/token_id + trainable_cfg)
@@ -46,6 +48,8 @@ CHECKPOINTS_ROOT=${CHECKPOINTS_ROOT:-./checkpoints}
 REF_DEVICE=${REF_DEVICE:-auto}
 NULL_ANCHOR_SOURCE=${NULL_ANCHOR_SOURCE:-auto}
 NULL_PROMPT_MODE=${NULL_PROMPT_MODE:-mask}
+LLADA_PRE_SFT_REF=${LLADA_PRE_SFT_REF:-GSAI-ML/LLaDA-8B-Instruct}
+REF_MODEL_NAME_OR_PATH=${REF_MODEL_NAME_OR_PATH:-}
 DISABLE_DP=${DISABLE_DP:-auto}
 GRADIENT_CHECKPOINTING=${GRADIENT_CHECKPOINTING:-0}
 CUDA_DEVICES=${CUDA_DEVICES:-0,1}
@@ -96,10 +100,18 @@ if [ "${GRADIENT_CHECKPOINTING}" = "1" ]; then
     )
 fi
 
+REF_ARGS=()
+if [ -n "${REF_MODEL_NAME_OR_PATH}" ]; then
+    REF_ARGS=(--ref_model_name_or_path "${REF_MODEL_NAME_OR_PATH}")
+elif [ "${NULL_ANCHOR_SOURCE}" = "pre_sft_cond" ]; then
+    REF_ARGS=(--ref_model_name_or_path "${LLADA_PRE_SFT_REF}")
+fi
+
 case "$PRESET" in
     tofu_llada)
         accelerate launch --num_processes 1 src/unlearn_mdu_llada.py \
             --model_name_or_path "$LLADA_BASE_SFT" \
+            "${REF_ARGS[@]}" \
             "${CKPT_ARGS[@]}" \
             "${MDU_ARGS[@]}" \
             --num_train_epochs "$EPO" --learning_rate "$LR" \
@@ -110,8 +122,15 @@ case "$PRESET" in
         ;;
 
     tofu_dream)
+        DREAM_REF_ARGS=()
+        if [ -n "${REF_MODEL_NAME_OR_PATH}" ]; then
+            DREAM_REF_ARGS=(--ref_model_name_or_path "${REF_MODEL_NAME_OR_PATH}")
+        elif [ "${NULL_ANCHOR_SOURCE}" = "pre_sft_cond" ]; then
+            DREAM_REF_ARGS=(--ref_model_name_or_path "${DREAM_BASE}")
+        fi
         accelerate launch --num_processes 1 src/unlearn_mdu_dream.py \
             --model_name_or_path "$DREAM_BASE_SFT" \
+            "${DREAM_REF_ARGS[@]}" \
             "${CKPT_ARGS[@]}" \
             "${MDU_ARGS[@]}" \
             --num_train_epochs "$EPO" --learning_rate "$LR" \

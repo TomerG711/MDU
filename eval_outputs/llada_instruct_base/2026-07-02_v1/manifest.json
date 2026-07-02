@@ -1,0 +1,67 @@
+{
+  "experiment": "llada_instruct_base",
+  "run_id": "2026-07-02_v1",
+  "run_root": "./eval_outputs/llada_instruct_base/2026-07-02_v1",
+  "updated_at": "2026-07-02T13:35:10.137265+00:00",
+  "eval_script": {
+    "path": "/home/dsi/garbert/MDU/scripts/eval_tofu_llada.py",
+    "sha256": "b44945763f4c8f1f1e62ee1f1a5df0fc14b2926af2c3d2cd1340280ec08d2dfd"
+  },
+  "git": {
+    "root": "/home/dsi/garbert/MDU",
+    "commit": "c6e9b03cedffd26eaee037daeca19b471852ec03",
+    "dirty": true
+  },
+  "environment": {
+    "python": "3.10.20",
+    "torch": "2.7.0+cu126",
+    "transformers": "4.57.0",
+    "hostname": "dsitirer01",
+    "cuda_visible_devices": "0"
+  },
+  "splits": {
+    "forget10": {
+      "split_dir": "./eval_outputs/llada_instruct_base/2026-07-02_v1/splits/forget10",
+      "status": "completed",
+      "started_at": "2026-07-02T13:04:32.003849+00:00",
+      "finished_at": "2026-07-02T13:35:10.133636+00:00",
+      "args": {
+        "model": "GSAI-ML/LLaDA-8B-Instruct",
+        "tofu_split": "forget10",
+        "hf_dataset": "locuslab/TOFU",
+        "hf_split": "train",
+        "forget_file": "./data/tofu/forget01.json",
+        "perturbed_file": "./data/tofu/forget01_perturbed.json",
+        "output_dir": "./eval_outputs/llada_instruct_base/2026-07-02_v1/splits/forget10",
+        "experiment": "llada_instruct_base",
+        "run_id": "2026-07-02_v1",
+        "eval_outputs_root": "./eval_outputs",
+        "force": false,
+        "max_new_tokens": 128,
+        "steps": 256,
+        "num_samples": null,
+        "mask_samples": 128,
+        "mc_batch_size": 128,
+        "truth_ratio": false,
+        "seed": 42,
+        "early_abort_n": 0,
+        "early_abort_threshold": 0.05,
+        "early_abort_mode": "below",
+        "suppress_special": false
+      },
+      "model": "GSAI-ML/LLaDA-8B-Instruct",
+      "scores": {
+        "rougeL": 0.1054680851769648,
+        "probability": 0.08418794191452145
+      },
+      "abort_reason": null,
+      "aborted": false
+    }
+  },
+  "paper_splits_expected": [
+    "forget10",
+    "retain_perturbed",
+    "real_authors",
+    "world_facts"
+  ]
+}

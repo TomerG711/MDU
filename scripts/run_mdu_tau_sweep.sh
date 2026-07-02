@@ -12,7 +12,8 @@
 #
 # Env (per invocation):
 #   MATCH_MODE=random|token_id|position     (default: random)
-#   NULL_ANCHOR_SOURCE=frozen_sft|trainable_cfg|ema  (default: frozen_sft)
+#   NULL_ANCHOR_SOURCE=frozen_sft|trainable_cfg|ema|pre_sft_cond  (default: frozen_sft)
+#   REF_MODEL_NAME_OR_PATH=...   # optional ref override
 #   NULL_ANCHOR_EMA_DECAY=0.999   # when NULL_ANCHOR_SOURCE=ema
 #   NULL_PROMPT_MODE=mask|empty|pad  (default: mask)
 #   TAUS="0 0.25 0.5 0.75 1"
@@ -52,6 +53,8 @@ GRAD_ACCUM="${GRAD_ACCUM:-8}"
 NOVEL_PERCENTILE="${NOVEL_PERCENTILE:-100}"
 NULL_ANCHOR_EMA_DECAY="${NULL_ANCHOR_EMA_DECAY:-0.999}"
 NULL_PROMPT_MODE="${NULL_PROMPT_MODE:-mask}"
+REF_MODEL_NAME_OR_PATH="${REF_MODEL_NAME_OR_PATH:-}"
+LLADA_PRE_SFT_REF="${LLADA_PRE_SFT_REF:-GSAI-ML/LLaDA-8B-Instruct}"
 GRADIENT_CHECKPOINTING="${GRADIENT_CHECKPOINTING:-0}"
 
 WANDB="${WANDB:-1}"
@@ -97,6 +100,7 @@ anchor_slug() {
     frozen_sft|frozen|ref) echo "frozen" ;;
     trainable_cfg|trainable|cfg) echo "cfg" ;;
     ema|ema_sft|ema_cfg) echo "ema" ;;
+    pre_sft_cond|pre_sft|base|base_instruct|presftcond) echo "presftcond" ;;
     *) echo "$1" ;;
   esac
 }
@@ -210,7 +214,7 @@ eval_run_root_for_run() {
 configure_gpus_for_anchor() {
   local anchor="$1"
   case "$(anchor_slug "${anchor}")" in
-    frozen|ema)
+    frozen|ema|presftcond)
       export CUDA_VISIBLE_DEVICES="${CUDA_DEVICES_FROZEN}"
       export REF_DEVICE="${REF_DEVICE_FROZEN}"
       export DISABLE_DP="${DISABLE_DP_FROZEN}"
@@ -301,6 +305,17 @@ validate_prerequisites() {
   if ! checkpoint_has_weights "${LLADA_BASE_SFT}"; then
     log "ERROR: SFT base model has no weights: ${LLADA_BASE_SFT}"
     missing=1
+  fi
+  if [[ "$(anchor_slug "${NULL_ANCHOR_SOURCE}")" == "presftcond" ]]; then
+    local ref_path="${REF_MODEL_NAME_OR_PATH:-${LLADA_PRE_SFT_REF}}"
+    if [[ -d "${ref_path}" || -f "${ref_path}/model.safetensors" || -f "${ref_path}/model.safetensors.index.json" ]]; then
+      if ! checkpoint_has_weights "${ref_path}"; then
+        log "ERROR: pre_sft_cond ref has no local weights: ${ref_path}"
+        missing=1
+      fi
+    else
+      log "pre_sft_cond ref will load from Hugging Face: ${ref_path}"
+    fi
   fi
   if [[ "${missing}" -ne 0 ]]; then
     exit 1
@@ -401,6 +416,13 @@ run_unlearn() {
     )
   fi
 
+  local -a ref_args=()
+  if [[ -n "${REF_MODEL_NAME_OR_PATH}" ]]; then
+    ref_args=(--ref_model_name_or_path "${REF_MODEL_NAME_OR_PATH}")
+  elif [[ "$(anchor_slug "${anchor}")" == "presftcond" ]]; then
+    ref_args=(--ref_model_name_or_path "${LLADA_PRE_SFT_REF}")
+  fi
+
   if [[ "${DRY_RUN}" == "1" ]]; then
     log "[dry-run] would run accelerate launch → ${log_file}"
     return 0
@@ -408,6 +430,7 @@ run_unlearn() {
 
   "${ACCELERATE}" launch --num_processes 1 "${UNLEARN_SCRIPT}" \
     --model_name_or_path "${LLADA_BASE_SFT}" \
+    "${ref_args[@]}" \
     --checkpoints_root "${CHECKPOINTS_ROOT}" \
     --checkpoint_name "${ckpt_name}" \
     --tofu_split forget10 \

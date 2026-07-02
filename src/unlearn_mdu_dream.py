@@ -49,6 +49,8 @@ from unlearn_run_utils import (  # noqa: E402
     needs_ema_model,
     resolve_null_anchor_uncond,
     build_null_anchor_uncond_inputs,
+    build_null_anchor_anchor_inputs,
+    resolve_ref_model_path,
     normalize_null_prompt_mode,
     NullAnchorEMACallback,
     RefSplitDataParallelGuardCallback,
@@ -246,13 +248,20 @@ class MDUTrainer(DreamTrainer):
     def _null_anchor_uses_frozen_ref(self) -> bool:
         return self._resolve_null_anchor_uncond() == "frozen_sft"
 
+    def _null_anchor_uses_pre_sft_cond(self) -> bool:
+        return self._resolve_null_anchor_uncond() == "pre_sft_cond"
+
     def _null_anchor_uses_ema(self) -> bool:
         return self._resolve_null_anchor_uncond() == "ema"
 
+    def _null_anchor_uses_ref_model(self) -> bool:
+        resolved = self._resolve_null_anchor_uncond()
+        return resolved in ("frozen_sft", "pre_sft_cond")
+
     def _null_anchor_uncond_logits(self, model, noised_u, attention_mask=None):
-        """Uncond logits for null-anchor KL: frozen ref, EMA anchor, or trainable CFG."""
+        """Anchor logits for null-anchor KL: frozen ref, EMA anchor, or trainable CFG."""
         with torch.no_grad():
-            if self._null_anchor_uses_frozen_ref():
+            if self._null_anchor_uses_ref_model():
                 if self.ref_model is None:
                     raise RuntimeError(
                         "null_anchor_source requires frozen ref_model but ref_model is None"
@@ -268,14 +277,24 @@ class MDUTrainer(DreamTrainer):
         self, noised, maskable_mask, attention_mask
     ):
         tok = self.processing_class
-        return build_null_anchor_uncond_inputs(
+        return build_null_anchor_anchor_inputs(
             noised,
             maskable_mask,
             attention_mask,
             mask_token_id=tok.mask_token_id,
             pad_token_id=tok.pad_token_id,
             null_prompt_mode=self.null_prompt_mode,
+            anchor_resolved=self._resolve_null_anchor_uncond(),
         )
+
+    def _null_anchor_log_suffix(self) -> str:
+        resolved = self._resolve_null_anchor_uncond() or "trainable_cfg"
+        parts = [f"anchor={resolved}"]
+        if resolved == "pre_sft_cond":
+            parts.append("anchor_input=conditional")
+        else:
+            parts.append(f"null_prompt_mode={self.null_prompt_mode}")
+        return " ".join(parts)
 
     def _get_exclude_ids(self, device):
         if self._exclude_ids is not None:
@@ -1103,7 +1122,7 @@ class MDUTrainer(DreamTrainer):
             f"[null-anchor] masked={n_masked}/{n_maskable} "
             f"({100*n_masked/max(1,n_maskable):.1f}%) "
             f"η={self.null_anchor_eta} τ={self.null_anchor_tau} dir={self.null_anchor_kl_dir} "
-            f"anchor={self.null_anchor_source} null_prompt_mode={self.null_prompt_mode} "
+            f"{self._null_anchor_log_suffix()} "
             f"kl̄={null_loss.item():.4f}"
         )
         return null_loss, outputs_c
@@ -1357,6 +1376,13 @@ class MDUTrainer(DreamTrainer):
 @dataclass
 class ModelArguments(dllm.utils.ModelArguments):
     model_name_or_path: str = "./checkpoints/dream-tofu-sft/checkpoint-final"
+    ref_model_name_or_path: str = field(
+        default="",
+        metadata={
+            "help": "Frozen ref checkpoint. For pre_sft_cond defaults to Dream-org/Dream-v0-Instruct-7B "
+            "when empty. For frozen_sft/npo defaults to model_name_or_path when empty."
+        },
+    )
 
 
 @dataclass
@@ -1433,7 +1459,9 @@ class DataArguments(dllm.utils.DataArguments):
         metadata={
             "help": "null_anchor uncond logits source. "
             "auto=upstream (random→frozen SFT ref; denoise modes→trainable CFG). "
-            "frozen_sft=always frozen ref_model. trainable_cfg=always trainable model. "
+            "frozen_sft=always frozen ref_model (null-prompt uncond). "
+            "pre_sft_cond=frozen pre-TOFU instruct ref with conditional inputs (same Q+A). "
+            "trainable_cfg=always trainable model. "
             "ema=EMA copy of student (init SFT, updated each step; any match_mode)."
         },
     )
@@ -1444,10 +1472,10 @@ class DataArguments(dllm.utils.DataArguments):
     null_prompt_mode: str = field(
         default="mask",
         metadata={
-            "help": "null_anchor uncond prompt handling. "
+            "help": "null_anchor uncond prompt handling (ignored when null_anchor_source=pre_sft_cond). "
             "mask=Q→[MASK] (MDU default). "
             "empty=keep Q token ids but zero attention on Q (synthesized attn mask). "
-            "pad=Q→pad_token_id. Applies to all null_anchor paths and anchor sources."
+            "pad=Q→pad_token_id. Applies to null-anchor paths except pre_sft_cond."
         },
     )
     single_pass: bool = field(
@@ -1641,18 +1669,29 @@ def train():
     ref_model = None
     ema_model = None
     ref_device_placed = None
+    resolved_ref_path = None
     load_ref = needs_ref_model(data_args)
     load_ema = needs_ema_model(data_args)
     if load_ref:
-        ref_model = dllm.utils.get_model(model_args=model_args)
+        resolved_ref_path = resolve_ref_model_path(
+            model_args,
+            data_args.null_anchor_source,
+            loss_type=data_args.loss_type,
+        )
+    if load_ref:
+        ref_model = dllm.utils.get_model(
+            model_args=model_args,
+            model_name_or_path=resolved_ref_path,
+        )
         for param in ref_model.parameters():
             param.requires_grad = False
         ref_model.eval()
         ref_device_placed = place_ref_model(ref_model, data_args.ref_device)
-        if ref_device_placed:
-            logger.info(f"[ref_model] anchor placed on {ref_device_placed} (ref_device={data_args.ref_device})")
-        else:
-            logger.info(f"[ref_model] anchor colocated with trainable model (ref_device={data_args.ref_device})")
+        logger.info(
+            f"[ref_model] loaded from {resolved_ref_path} "
+            f"placed on {ref_device_placed or 'colocated'} "
+            f"(null_anchor_source={data_args.null_anchor_source})"
+        )
     if load_ema:
         ema_model = dllm.utils.get_model(model_args=model_args)
         for param in ema_model.parameters():
@@ -1676,6 +1715,7 @@ def train():
         ref_loaded=load_ref,
         ref_device_placed=ref_device_placed,
         ema_loaded=load_ema,
+        ref_model_name_or_path=resolved_ref_path,
     )
     logger.info(format_mdu_setup_log(mdu_setup))
 

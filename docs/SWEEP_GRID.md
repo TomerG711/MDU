@@ -22,6 +22,8 @@ MATCH_MODE=position NULL_ANCHOR_SOURCE=frozen_sft bash scripts/run_mdu_tau_sweep
 | `MATCH_MODE` | `random` |
 | `NULL_ANCHOR_SOURCE` | `frozen_sft` |
 | `NULL_PROMPT_MODE` | `mask` |
+| `REF_MODEL_NAME_OR_PATH` | *(empty; see per-source defaults)* |
+| `LLADA_PRE_SFT_REF` | `GSAI-ML/LLaDA-8B-Instruct` |
 | `TAUS` | `0 0.25 0.5 0.75 1` |
 
 ## Full grid (30 runs = 6 separate invocations)
@@ -52,9 +54,10 @@ From `run_main.sh` + `configs/mdu_tofu.yaml`:
 
 ### Per `null_anchor_source`
 
-| Source | Uncond anchor | GPUs |
-|--------|---------------|------|
-| `frozen_sft` | Frozen SFT `ref_model` | `CUDA_DEVICES_FROZEN=0,1` |
+| Source | Anchor | GPUs |
+|--------|--------|------|
+| `frozen_sft` | Frozen SFT `ref_model`, null-prompt uncond | `CUDA_DEVICES_FROZEN=0,1` |
+| `pre_sft_cond` | Frozen pre-TOFU instruct (`GSAI-ML/LLaDA-8B-Instruct` default), **conditional** same Q+A | `CUDA_DEVICES_FROZEN=0,1` |
 | `trainable_cfg` | Trainable `model`, Q masked | `CUDA_DEVICES_TRAINABLE=0` |
 
 See [NULL_ANCHOR_AND_REF.md](NULL_ANCHOR_AND_REF.md).
@@ -76,9 +79,34 @@ See [NULL_ANCHOR_AND_REF.md](NULL_ANCHOR_AND_REF.md).
 - Checkpoint: `mdu_llada_forget10_position_cfg_nullprompt_empty_tau0p25`
 - Eval: `eval_outputs/mdu_position_cfg_nullprompt_empty/2026-06-22_tau0p25_v1`
 
+**Pre-SFT conditional anchor** (example):
+
+- Checkpoint: `mdu_llada_forget10_position_presftcond_tau0p25`
+- Eval: `eval_outputs/mdu_position_presftcond/2026-07-02_tau0p25_v1`
+
+## Pre-SFT conditional anchor (`pre_sft_cond`)
+
+Frozen pre-TOFU instruct ref with **conditional** inputs (same `[Q|masked A]` as student). Default ref: `GSAI-ML/LLaDA-8B-Instruct`. Works with any `match_mode`.
+
+```bash
+MATCH_MODE=position NULL_ANCHOR_SOURCE=pre_sft_cond \
+  GRADIENT_CHECKPOINTING=1 TAUS="0.25 0.5" bash scripts/run_mdu_tau_sweep.sh
+```
+
+Compare vs `mdu_position_cfg` (best forget rL **0.016** @ τ=0.25).
+
 ## Empty-prompt ablation
 
-Compare against mask baseline (`position + trainable_cfg @ τ=0.25`: forget rL 0.016, retain rL 0.846 in `eval_outputs/RESULTS.md`):
+Compare against mask baseline (`position + trainable_cfg @ τ=0.25`: forget rL 0.016, retain rL 0.846 in `eval_outputs/RESULTS.md`).
+
+**Note:** `empty` gave a small forget win on `random` (~0.01–0.05 rL); **position+empty not run** — still worth completing:
+
+```bash
+MATCH_MODE=position NULL_ANCHOR_SOURCE=trainable_cfg NULL_PROMPT_MODE=empty \
+  GRADIENT_CHECKPOINTING=1 TAUS="0.25 0.5" bash scripts/run_mdu_tau_sweep.sh
+```
+
+Quick single-τ probe:
 
 ```bash
 MATCH_MODE=position NULL_ANCHOR_SOURCE=trainable_cfg NULL_PROMPT_MODE=empty \

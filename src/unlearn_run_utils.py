@@ -32,6 +32,10 @@ from tofu_data import load_jsonl, load_tofu_hf  # noqa: E402
 DEFAULT_WANDB_PROJECT = "unlearning-dllms-MDU"
 _MDU_RUN_NAME_PLACEHOLDER = "./checkpoints/_mdu_run"
 
+# Pre-TOFU instruct checkpoints (conditional anchor defaults)
+DEFAULT_PRE_SFT_REF_LLAMA = "GSAI-ML/LLaDA-8B-Instruct"
+DEFAULT_PRE_SFT_REF_DREAM = "Dream-org/Dream-v0-Instruct-7B"
+
 
 def resolve_ref_device(ref_device: str) -> Optional[str]:
     """
@@ -128,6 +132,63 @@ def build_null_anchor_uncond_inputs(
     return noised_u, attn_u
 
 
+def build_null_anchor_anchor_inputs(
+    noised: torch.Tensor,
+    maskable_mask: torch.Tensor,
+    attention_mask: Optional[torch.Tensor],
+    *,
+    mask_token_id: int,
+    pad_token_id: Optional[int],
+    null_prompt_mode: str = "mask",
+    anchor_resolved: Optional[str] = None,
+) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
+    """
+    Build anchor-side forward inputs for null-anchor KL.
+
+  ``pre_sft_cond`` uses the same conditional inputs as the student; other anchors
+    delegate to ``build_null_anchor_uncond_inputs``.
+    """
+    if anchor_resolved == "pre_sft_cond":
+        return noised, attention_mask
+    return build_null_anchor_uncond_inputs(
+        noised,
+        maskable_mask,
+        attention_mask,
+        mask_token_id=mask_token_id,
+        pad_token_id=pad_token_id,
+        null_prompt_mode=null_prompt_mode,
+    )
+
+
+def _default_pre_sft_ref_for_student(model_name_or_path: str) -> str:
+    path = (model_name_or_path or "").lower()
+    if "dream" in path:
+        return DEFAULT_PRE_SFT_REF_DREAM
+    return DEFAULT_PRE_SFT_REF_LLAMA
+
+
+def resolve_ref_model_path(model_args, null_anchor_source: str, *, loss_type: str = "") -> str:
+    """
+    Resolve frozen ref checkpoint path.
+
+    - ``pre_sft_cond``: explicit ``ref_model_name_or_path`` or backbone default instruct HF id
+    - ``frozen_sft`` / ``npo``: explicit override or student ``model_name_or_path``
+  """
+    explicit = (getattr(model_args, "ref_model_name_or_path", None) or "").strip()
+    if explicit:
+        return explicit
+    key = null_anchor_source_key(null_anchor_source)
+    if key in ("pre_sft_cond", "pre_sft", "base", "base_instruct", "presftcond"):
+        return _default_pre_sft_ref_for_student(
+            getattr(model_args, "model_name_or_path", "") or ""
+        )
+    if loss_type == "npo" or key in ("frozen_sft", "frozen", "ref"):
+        return getattr(model_args, "model_name_or_path", "")
+    raise ValueError(
+        f"resolve_ref_model_path: no ref path for null_anchor_source={null_anchor_source!r}"
+    )
+
+
 def resolve_null_anchor_uncond(
     *,
     loss_type: str,
@@ -138,15 +199,20 @@ def resolve_null_anchor_uncond(
     """
     Resolved uncond anchor for null-anchor KL.
 
-    Returns ``frozen_sft``, ``trainable_cfg``, ``ema``, or ``None`` (non-null_anchor).
+    Returns ``frozen_sft``, ``pre_sft_cond``, ``trainable_cfg``, ``ema``, or ``None``.
 
     ``auto`` (upstream-compatible):
       - ``match_mode=random`` or traj rollout → frozen SFT ref
       - denoise trajectory modes (position/token_id/…) → trainable CFG (Q masked)
+
+    ``pre_sft_cond`` is explicit opt-in only (never via ``auto``): frozen pre-SFT
+    instruct ref with **conditional** inputs (same Q+A as student).
     """
     if loss_type != "null_anchor":
         return None
     key = null_anchor_source_key(null_anchor_source)
+    if key in ("pre_sft_cond", "pre_sft", "base", "base_instruct", "presftcond"):
+        return "pre_sft_cond"
     if key in ("ema", "ema_sft", "ema_cfg"):
         return "ema"
     if key in ("frozen_sft", "frozen", "ref"):
@@ -176,6 +242,39 @@ def null_anchor_uses_frozen_ref(
     ) == "frozen_sft"
 
 
+def null_anchor_uses_pre_sft_cond(
+    *,
+    loss_type: str,
+    null_anchor_source: str,
+    match_mode: str,
+    null_anchor_traj_rollout: bool,
+) -> bool:
+    """Whether null-anchor logits come from frozen pre-SFT ref with conditional inputs."""
+    return resolve_null_anchor_uncond(
+        loss_type=loss_type,
+        null_anchor_source=null_anchor_source,
+        match_mode=match_mode,
+        null_anchor_traj_rollout=null_anchor_traj_rollout,
+    ) == "pre_sft_cond"
+
+
+def null_anchor_uses_ref_model(
+    *,
+    loss_type: str,
+    null_anchor_source: str,
+    match_mode: str,
+    null_anchor_traj_rollout: bool,
+) -> bool:
+    """Whether null-anchor uses an external frozen ref_model (SFT-null or pre-SFT cond)."""
+    resolved = resolve_null_anchor_uncond(
+        loss_type=loss_type,
+        null_anchor_source=null_anchor_source,
+        match_mode=match_mode,
+        null_anchor_traj_rollout=null_anchor_traj_rollout,
+    )
+    return resolved in ("frozen_sft", "pre_sft_cond")
+
+
 def null_anchor_uses_ema(
     *,
     loss_type: str,
@@ -197,7 +296,7 @@ def needs_ref_model(data_args) -> bool:
     if data_args.loss_type == "npo":
         return True
     if data_args.loss_type == "null_anchor":
-        return null_anchor_uses_frozen_ref(
+        return null_anchor_uses_ref_model(
             loss_type=data_args.loss_type,
             null_anchor_source=getattr(data_args, "null_anchor_source", "auto"),
             match_mode=data_args.match_mode,
@@ -248,20 +347,26 @@ def build_mdu_setup_summary(
     ref_loaded: bool,
     ref_device_placed: Optional[str],
     ema_loaded: bool = False,
+    ref_model_name_or_path: Optional[str] = None,
 ) -> dict:
     """Single source of truth for logs, train_config, and replication audits."""
     uncond = describe_null_anchor_uncond(data_args)
+    anchor_input_mode = (
+        "conditional" if uncond == "pre_sft_cond" else "uncond" if uncond else None
+    )
     return {
         "loss_type": data_args.loss_type,
         "match_mode": data_args.match_mode,
         "forget_loss_path": describe_forget_loss_path(data_args),
         "null_anchor_source": getattr(data_args, "null_anchor_source", "auto"),
         "null_anchor_uncond_resolved": uncond,
+        "anchor_input_mode": anchor_input_mode,
         "null_anchor_tau": getattr(data_args, "null_anchor_tau", None),
         "null_anchor_ema_decay": getattr(data_args, "null_anchor_ema_decay", None),
         "null_anchor_traj_rollout": getattr(data_args, "null_anchor_traj_rollout", False),
         "null_prompt_mode": getattr(data_args, "null_prompt_mode", "mask"),
         "ref_model_loaded": ref_loaded,
+        "ref_model_name_or_path": ref_model_name_or_path,
         "ema_model_loaded": ema_loaded,
         "ref_device_placed": ref_device_placed,
         "ref_device_arg": getattr(data_args, "ref_device", None),
@@ -276,17 +381,21 @@ def format_mdu_setup_log(setup: dict) -> str:
         f"loss_type={setup['loss_type']}",
     ]
     if setup["null_anchor_uncond_resolved"] is not None:
-        parts.append(f"uncond={setup['null_anchor_uncond_resolved']}")
+        parts.append(f"anchor={setup['null_anchor_uncond_resolved']}")
         parts.append(f"null_anchor_source={setup['null_anchor_source']}")
+        if setup.get("anchor_input_mode"):
+            parts.append(f"anchor_input={setup['anchor_input_mode']}")
         if setup.get("null_anchor_tau") is not None:
             parts.append(f"τ={setup['null_anchor_tau']}")
         npm = setup.get("null_prompt_mode") or "mask"
-        if npm != "mask":
+        if npm != "mask" and setup["null_anchor_uncond_resolved"] != "pre_sft_cond":
             parts.append(f"null_prompt_mode={npm}")
     ref = "loaded" if setup["ref_model_loaded"] else "not_loaded"
     if setup["ref_device_placed"]:
         ref += f"@{setup['ref_device_placed']}"
     parts.append(f"ref_model={ref}")
+    if setup.get("ref_model_name_or_path"):
+        parts.append(f"ref_path={setup['ref_model_name_or_path']}")
     if setup.get("ema_model_loaded"):
         ema = "loaded"
         if setup["ref_device_placed"]:
@@ -499,6 +608,8 @@ def _anchor_tag(null_anchor_source: str) -> str:
         return "cfg"
     if key in ("ema", "ema_sft", "ema_cfg"):
         return "ema"
+    if key in ("pre_sft_cond", "pre_sft", "base", "base_instruct", "presftcond"):
+        return "presftcond"
     return key.replace("_", "")
 
 
@@ -518,7 +629,11 @@ def default_checkpoint_name(
         tau_s = f"{null_anchor_tau:g}".replace(".", "p")
         mode = match_mode.replace("/", "_")
         anchor = _anchor_tag(null_anchor_source)
-        npm_slug = null_prompt_mode_slug(null_prompt_mode)
+        npm_slug = (
+            ""
+            if anchor == "presftcond"
+            else null_prompt_mode_slug(null_prompt_mode)
+        )
         npm_part = f"_{npm_slug}" if npm_slug else ""
         # Legacy: random + frozen + mask (pre-grid τ sweep names)
         if mode == "random" and anchor == "frozen" and not npm_part:
