@@ -21,6 +21,7 @@ Per-run provenance: `summary.json` / `manifest.json` under each `<experiment>/<r
 | `mdu_tau*` | `random` | frozen | 0 … 1 | 20/20 | complete |
 | `mdu_random_cfg` | `random` | trainable (mask) | 0 … 1 | 20/20 | complete |
 | `mdu_random_cfg_nullprompt_empty` | `random` | trainable (empty) | 0 … 1 | 20/20 | complete |
+| `mdu_random_frozen_nullprompt_empty` | `random` | frozen (empty) | 0.25, 0.5, 1 | 12/12 | complete |
 | `mdu_random_ema` | `random` | **ema** (decay=0.999) | 0.25, 0.5 | 8/8 | complete |
 | `mdu_random_ema0p99` | `random` | **ema** (decay=0.99) | 0.25, 0.5 | 8/8 | complete |
 | `mdu_position_ema0p99` | `position` | **ema** (decay=0.99) | 0.25, 0.5, 1 | 12/12 | complete |
@@ -29,9 +30,9 @@ Per-run provenance: `summary.json` / `manifest.json` under each `<experiment>/<r
 | `mdu_token_id_frozen` | `token_id` | frozen | 0 … 1 | 20/20 | complete |
 | `mdu_token_id_cfg` | `token_id` | trainable | 0 … 1 | 20/20 | complete |
 
-**Full grid:** 6 configs × 5 τ = 30 runs complete, plus EMA sweeps (`random`: 2 decays × 2 τ; `position`: decay=0.99 × 3 τ), plus **empty-prompt ablation** (`random`+trainable, `null_prompt_mode=empty`, 5 τ). All eval splits validated: `status=completed`, expected line counts (400 / 400 / 117 / 100).
+**Full grid:** 6 configs × 5 τ = 30 runs complete, plus EMA sweeps (`random`: 2 decays × 2 τ; `position`: decay=0.99 × 3 τ), plus **empty-prompt ablations** on `random` (trainable: 5 τ; frozen: τ=0.25/0.5/1). All eval splits validated: `status=completed`, expected line counts (400 / 400 / 117 / 100).
 
-EMA per-anchor tables: [§ EMA anchor comparison](#ema-anchor-comparison-per-match_mode). Empty-prompt: [§ Random + trainable + empty null prompt](#random--trainable--empty-null-prompt-mdu_random_cfg_nullprompt_empty).
+EMA per-anchor tables: [§ EMA anchor comparison](#ema-anchor-comparison-per-match_mode). Empty-prompt: [trainable](#random--trainable--empty-null-prompt-mdu_random_cfg_nullprompt_empty) · [frozen](#random--frozen--empty-null-prompt-mdu_random_frozen_nullprompt_empty).
 
 ---
 
@@ -164,7 +165,35 @@ Checkpoints: `checkpoints/mdu_llada_forget10_position_ema0p99_tau{0p25,0p5,1}/`.
 
 Checkpoints: `checkpoints/mdu_llada_forget10_random_cfg_nullprompt_empty_tau{0,0p25,0p5,0p75,1}/`.
 
-**Verdict:** **Empty-prompt chapter closed** for `random`+trainable — no meaningful gain over mask; fixing gibberish/fluent unlearning remains a `match_mode` / τ / anchor problem (position+trainable), not null-prompt variant.
+---
+
+## Random + frozen + empty null prompt (`mdu_random_frozen_nullprompt_empty`)
+
+**Purpose:** Same `null_prompt_mode=empty` ablation with **frozen** uncond anchor (`ref_model` on GPU 1). Subset τ sweep to confirm the trainable-empty nudge generalizes across anchor source.
+
+**Training:** Same as `mdu_tau*` except `--null_prompt_mode empty`. `match_mode=random`, `null_anchor_source=frozen_sft`, `ref_device=auto`, GPUs 0+1, 9 ep, lr=1e-5, batch 2×8. Sweep completed 2026-07-01 (`sweep_logs/mdu_tau_sweep_random_frozen_nullprompt_empty_2026-07-01.log`). τ = **0.25, 0.5, 1** only.
+
+| | Forget rL | Forget p | Retain rL | Retain p | RA rL | RA p | WF rL | WF p |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **τ=0.25** | 0.221 | 0.014 | 0.799 | 0.469 | 0.525 | 0.172 | 0.807 | 0.275 |
+| **τ=0.50** | 0.536 | 0.445 | 0.736 | 0.576 | 0.568 | 0.157 | 0.787 | 0.243 |
+| **τ=1.00** | 0.531 | 0.457 | 0.686 | 0.558 | 0.577 | 0.122 | 0.773 | 0.206 |
+
+**vs `mdu_tau*` (frozen+mask, forget rL / p):** τ=0.25: 0.221 vs 0.233 / 0.014 vs 0.016; τ=0.5: 0.536 vs 0.566 / 0.445 vs 0.465; τ=1: 0.531 vs 0.561 / 0.457 vs 0.470. **Consistent small forget win** (~0.01–0.03 rL) at every τ, same qualitative regime (gibberish at τ=0.25, SFT-like forget **p** at τ≥0.5).
+
+**vs trainable+empty:** frozen+empty **worse** at τ=0.25 (0.221 vs 0.174 rL) — trainable anchor still better on `random`. Empty does not close the gap to position+trainable (0.016).
+
+| τ | Eval | W&B |
+|---|------|-----|
+| 0.25 | [`2026-07-01_tau0p25_v1`](./mdu_random_frozen_nullprompt_empty/2026-07-01_tau0p25_v1/) | [run](https://wandb.ai/model-validation/unlearning-dllms-MDU/runs/perzkm0t) |
+| 0.5 | [`2026-07-01_tau0p5_v1`](./mdu_random_frozen_nullprompt_empty/2026-07-01_tau0p5_v1/) | [run](https://wandb.ai/model-validation/unlearning-dllms-MDU/runs/3b6wrc2v) |
+| 1 | [`2026-07-01_tau1_v1`](./mdu_random_frozen_nullprompt_empty/2026-07-01_tau1_v1/) | [run](https://wandb.ai/model-validation/unlearning-dllms-MDU/runs/gu1xvtvo) |
+
+Checkpoints: `checkpoints/mdu_llada_forget10_random_frozen_nullprompt_empty_tau{0p25,0p5,1}/`.
+
+### Empty null prompt — chapter verdict
+
+`null_prompt_mode=empty` (attention-masked Q vs `[MASK]` tokens) gives a **repeatable but small** forget improvement on `random` for **both** trainable and frozen anchors (~0.01–0.05 rL, slightly lower **p**). Retain unchanged. Outputs stay **gibberish** at low τ; no path to fluent unlearning or position-level forget (rL **0.016**). **Position+empty not run.** **`pad` not evaluated.** **Chapter closed** — engineering is sound; research effort should stay on `match_mode` / anchor / τ, not null-prompt variants.
 
 ---
 
@@ -430,4 +459,4 @@ Side-by-side: **Paper** (MDU Table 2), **frozen**, **EMA decay=0.999**, **EMA de
 - **Token_id+trainable disk failure (resolved):** first run failed on disk during τ=0 checkpoint save; relaunched 2026-06-27 after deleting completed-sweep checkpoints.
 - **EMA anchor:** decay=0.999 ≈ frozen on `random`; decay=0.99 gives a small forget bump only. On `position`, EMA₀.₉₉ (τ=0.25/0.5/1) tracks frozen — does not beat trainable. `position+ema` decay=0.999 not run. See [EMA comparison tables](#ema-anchor-comparison-per-match_mode).
 - **Best forget overall:** position+trainable at τ=0.25 (rL=0.016). **Best paper-likely config (token_id):** token_id+trainable at τ=0.25–0.5 (rL=0.038–0.092).
-- **Empty null prompt (`null_prompt_mode=empty`):** `random`+trainable sweep complete (20/20 evals). Tracks mask (`mdu_random_cfg`) on all metrics; forget at τ=0.25 still gibberish (rL≈0.17). Position+empty not evaluated. See [§ Random + trainable + empty null prompt](#random--trainable--empty-null-prompt-mdu_random_cfg_nullprompt_empty).
+- **Empty null prompt (`null_prompt_mode=empty`):** trainable sweep 5 τ (20/20) + frozen sweep τ=0.25/0.5/1 (12/12). Empty beats mask slightly on forget rL at every compared τ; retain unchanged; still gibberish on `random`. **Chapter closed** — see [trainable](#random--trainable--empty-null-prompt-mdu_random_cfg_nullprompt_empty) and [frozen](#random--frozen--empty-null-prompt-mdu_random_frozen_nullprompt_empty) sections and [chapter verdict](#empty-null-prompt--chapter-verdict).
